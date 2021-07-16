@@ -12,6 +12,8 @@ import itertools
 # import murmurhash
 # import mmh3
 
+import statistics
+
 
 DEBUG = True # can be turned off via flags
 
@@ -354,6 +356,7 @@ if "compare" in action:
 	rows = cur.execute("SELECT filename,fname,hashvals FROM funchash WHERE fname LIKE ? AND numperms=?", (funcName, MINHASH_PERMS))
 
 	filename_hashobjs = {}
+	jaccard_dists = []
 
 	for r in rows:
 		filename = r[0]
@@ -370,9 +373,16 @@ if "compare" in action:
 		file1 = p[1]
 		m0 = filename_hashobjs[file0]
 		m1 = filename_hashobjs[file1]
+		jaccardi = m0.jaccard(m1)
+		jaccard_dists.append(jaccardi)
 
-		print(f"jaccard {funcName} {file0}:{file1} on {MINHASH_PERMS} permus: {m0.jaccard(m1)}")
+		print(f"jaccard {funcName} {file0}:{file1} on {MINHASH_PERMS} permus: {jaccardi}")
 
+	# average jacard distance will show how well comparisons worked for this function across different architectures.
+	print(f"min jaccard dist: {min(jaccard_dists)}")
+	print(f"max jaccard dist: {max(jaccard_dists)}")
+	print(f"median jaccard dist: {statistics.median(jaccard_dists)}")
+	print(f"mean jaccard dist: {statistics.mean(jaccard_dists)}")
 
 if "hash" in action:
 	print(f"done, elapsed {time.time() - start}")
