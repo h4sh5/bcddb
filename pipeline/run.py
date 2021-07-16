@@ -130,7 +130,70 @@ def extract_BB_retdecLL(filepath, sqlite_con = None) -> int:
 		debug(f"skipped {skipCount} basic blocks")
 
 	return count
-# main
+
+
+def tokenize(instruction):
+	'''
+	takes an llvm IR instruction and returns a list of string tokens
+	'''
+	tokens = instruction.split()
+	result_tokens = []
+
+	intsizes = ['i4', 'i8', 'i16', 'i32', 'i64',
+		'u4', 'u8', 'u16', 'u32', 'u64']
+
+	# when a token starts with a shoterner, truncate it to the shortener.
+	shorteners = ['%stack_var', '%dec_label', '%global', '@global']
+
+	for i in range(len(tokens)):
+		# run replacement rules
+		t = tokens[i]
+		replaced = False
+
+		
+		for s in shorteners:
+			if t.startswith(s):
+				# debug(f'replacing {t} with {s}')
+				result_tokens.append(s)
+				replaced = True
+				break
+		if replaced:
+			continue
+
+		elif t[:3] in intsizes:
+			# debug(f'dropping {t}')
+			continue
+
+
+		elif t.startswith('%') and not ("(" in t):
+			# generic variable reference
+			newt = '%r'
+			# debug(f'replacing {t} with {newt}')
+			result_tokens.append(newt)
+
+		elif t == '!insn.addr': # stop processing
+			break
+
+		
+		else:
+			newt = t
+			for it in intsizes:
+				newt = newt.replace(it, '')
+			# newt = t.replace()
+			result_tokens.append(newt)
+
+
+		# can use lookahead to determine nature of token
+	if result_tokens != []:
+		result_tokens.append(";")
+		return result_tokens # signify end of instruction
+	return None
+
+
+
+
+
+############################ main
 
 if len(sys.argv) < 2:
 	help()
@@ -180,3 +243,22 @@ if stage == "extract":
 	print(f"find the results in {dbpath}")
 
 
+
+if stage == "tokenize":
+	indbpath = os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract'])
+	con = sqlite3.connect(indbpath)
+	cur = con.cursor()
+	# XXX take one for example
+	cur.execute("SELECT filename, fname, llcode FROM function ORDER BY RANDOM() LIMIT 1")
+	row = cur.fetchone()
+	print(f"function: {row[0]}{row[1]}")
+	llcode = row[2]
+	for line in llcode.split("\n"):
+		# each line is an LLVM IR instruction
+		# skip labels
+		line = line.lstrip() # strip leading whitespace
+		if line.startswith('dec_label') or line == '}' or line.startswith('define'):
+			continue
+		tokens = tokenize(line)
+		
+		print(tokens)
