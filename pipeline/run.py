@@ -379,10 +379,11 @@ if "compare" in action:
 		print(f"jaccard {funcName} {file0}:{file1} on {MINHASH_PERMS} permus: {jaccardi}")
 
 	# average jacard distance will show how well comparisons worked for this function across different architectures.
-	print(f"min jaccard dist: {min(jaccard_dists)}")
-	print(f"max jaccard dist: {max(jaccard_dists)}")
-	print(f"median jaccard dist: {statistics.median(jaccard_dists)}")
-	print(f"mean jaccard dist: {statistics.mean(jaccard_dists)}")
+	if len(jaccard_dists) > 0:
+		print(f"min jaccard dist: {min(jaccard_dists)}")
+		print(f"max jaccard dist: {max(jaccard_dists)}")
+		print(f"median jaccard dist: {statistics.median(jaccard_dists)}")
+		print(f"mean jaccard dist: {statistics.mean(jaccard_dists)}")
 
 if "hash" in action:
 	print(f"done, elapsed {time.time() - start}")
