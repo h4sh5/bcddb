@@ -7,21 +7,33 @@ import sqlite3
 import os
 import time
 
+from datasketch import MinHash, LeanMinHash
+import itertools
+# import murmurhash
+# import mmh3
+
+
 DEBUG = True # can be turned off via flags
 
 def debug(*args, **kwargs):
 	if DEBUG:
 		print(*args,file=sys.stderr, **kwargs)
 
-def help():
-	print("usage:\n%s <stage>"%sys.argv[0] )
-	print("stage can be extract, tokenize, hash, compare")
+def usage():
+	print("usage:\n%s <action>"%sys.argv[0] )
+	print("action can include extract, tokenize, hash, compare")
+	print('''
+		arguments:
+		-f funcion_name		: function name to evaluate during compare
+		-p permutations		: number of permutations for minhash
+
+		''')
 
 DATADIR = 'data' # in the current dir
 
 OUTPUT_DBPATHS = {'extract':'ll_extract.db', 'tokenize':'tokens.db', 'hash':'hashes.db'}
 
-
+MINHASH_PERMS = 64 # default setting is 128, but can shrink due to small length of instructions
 
 def extract_functions_retdecLL(filepath, sqlite_con = None) -> int:
 	'''
@@ -72,6 +84,7 @@ def extract_functions_retdecLL(filepath, sqlite_con = None) -> int:
 		# console
 		# import code
 		# code.interact(local=locals())
+
 
 		r = pattern.search(data, r.start() + 1)
 
@@ -190,33 +203,40 @@ def tokenize(instruction):
 	return None
 
 
-
+def mmh(d):
+    return murmurhash.hash(d)
 
 
 ############################ main
 
 if len(sys.argv) < 2:
-	help()
+	usage()
 	exit(1)
 
+funcName = None
 
-opts, args = getopt.gnu_getopt(sys.argv[1:], 'hd:')
+opts, args = getopt.gnu_getopt(sys.argv[1:], 'hd:p:f:')
 for tup in opts:
-        o,a = tup[0], tup[1]
-        if o == '-h':
-            usage()
-            exit(0)
-        elif o == '-d':
-        	datadir = a
+		o,a = tup[0], tup[1]
+		if o == '-h':
+			usage()
+			exit(0)
+		elif o == '-d':
+			DATADIR = a
+		elif o == '-p':
+			MINHASH_PERMS = int(a)
+		elif o == '-f':
+			funcName = a
 
-stage = args[0]
+
+action = args[0]
 
 start = time.time()
 
-if stage == "extract":
+if "extract" in action:
 
 	# create db
-	dbpath = os.path.join(DATADIR,"db",OUTPUT_DBPATHS[stage])
+	dbpath = os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract'])
 	con = sqlite3.connect(dbpath)
 	cur = con.cursor()
 	cur.execute('''CREATE TABLE IF NOT EXISTS function (filename VARCHAR, fname VARCHAR, 
@@ -243,22 +263,121 @@ if stage == "extract":
 	print(f"find the results in {dbpath}")
 
 
-
-if stage == "tokenize":
+# TODO decouple token and hash? or later?
+if "tokenize" in action:
 	indbpath = os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract'])
 	con = sqlite3.connect(indbpath)
 	cur = con.cursor()
 	# XXX take one for example
-	cur.execute("SELECT filename, fname, llcode FROM function ORDER BY RANDOM() LIMIT 1")
-	row = cur.fetchone()
-	print(f"function: {row[0]}{row[1]}")
-	llcode = row[2]
-	for line in llcode.split("\n"):
-		# each line is an LLVM IR instruction
-		# skip labels
-		line = line.lstrip() # strip leading whitespace
-		if line.startswith('dec_label') or line == '}' or line.startswith('define'):
-			continue
-		tokens = tokenize(line)
-		
-		print(tokens)
+	rows = cur.execute("SELECT filename, fname, llcode FROM function ORDER BY RANDOM()")
+
+	fnhashCount = 0
+	fnSkipCount = 0
+
+	for row in rows:
+	
+		filename = row[0]
+		fname = row[1]
+		print(f"function: {filename}{fname}")
+		llcode = row[2]
+		functokens = []
+
+		for line in llcode.split("\n"):
+			# each line is an LLVM IR instruction
+			# skip labels
+			line = line.lstrip() # strip leading whitespace
+			if line.startswith('dec_label') or line == '}' or line.startswith('define'):
+				continue
+			tokens = tokenize(line)
+
+			if tokens:		
+				# print(tokens) # each instruction
+				functokens.extend(tokens)
+
+		if "hash" in action:
+
+			'''
+			# minhashes can be computed in bulk!
+			# takes bytes, so need encoding!
+			data = [[b'token1', b'token2', b'token3'],
+				  [b'token4', b'token5', b'token6']]
+			minhashes = MinHash.bulk(data, num_perm=64)
+			'''
+			con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
+			cur = con.cursor()
+			# TODO: create single hash number table to store each value individually 
+			# for more scalable comparison
+			cur.execute('''
+				CREATE TABLE IF NOT EXISTS funchash (filename VARCHAR, fname VARCHAR, 
+									numperms INT, hashvals VARCHAR, PRIMARY KEY (filename, fname, numperms))''')
+			con.commit()
+			if functokens:
+
+				# can also use LeanMinHash to save memory/space!
+				 #, hashfunc=mmh3.hash)
+				m = MinHash(num_perm=MINHASH_PERMS)
+
+				for t in functokens:
+					m.update(t.encode('utf8'))
+					# m.update(t)
+
+				lm = LeanMinHash(m)
+				hashvals = str(list(lm.hashvalues)).lstrip('[').rstrip(']')
+				# debug('hash:', hashvals)
+				try:
+					cur.execute("INSERT INTO funchash (filename,fname, numperms, hashvals) values(?,?,?,?)",
+						(
+							filename, 
+							fname, 
+							MINHASH_PERMS, 
+							hashvals
+						)
+					)
+					con.commit()
+					fnhashCount += 1
+				
+				except sqlite3.IntegrityError:
+					fnSkipCount += 1
+					pass
+				
+				# import code
+				# code.interact(local=locals())
+
+if "compare" in action:
+	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
+	cur = con.cursor()
+	
+	if funcName == None:
+		print("please specify function name to compare in -f ")
+		exit(1)
+
+	rows = cur.execute("SELECT filename,fname,hashvals FROM funchash WHERE fname LIKE ? AND numperms=?", (funcName, MINHASH_PERMS))
+
+	filename_hashobjs = {}
+
+	for r in rows:
+		filename = r[0]
+		fname = r[1]
+		hashvalStr = r[2]
+		hashvals = [ int(i) for i in hashvalStr.split(',') ]
+		print(f"{filename}:{fname}")
+		filename_hashobjs[filename] = MinHash(hashvalues=hashvals)
+
+	# do all combinations and compare them (jaccard distance is commutative, 
+	# m0.jaccard(m1) == m1.jaccard(m0)
+	for p in itertools.combinations(filename_hashobjs.keys(), 2):
+		file0 = p[0]
+		file1 = p[1]
+		m0 = filename_hashobjs[file0]
+		m1 = filename_hashobjs[file1]
+
+		print(f"jaccard {funcName} {file0}:{file1} on {MINHASH_PERMS} permus: {m0.jaccard(m1)}")
+
+
+if "hash" in action:
+	print(f"done, elapsed {time.time() - start}")
+	print(f"processed {fnhashCount} func hashes, skipped {fnSkipCount}")
+
+
+
+
