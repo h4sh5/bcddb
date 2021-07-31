@@ -21,6 +21,10 @@ def debug(*args, **kwargs):
 	if VERBOSE:
 		print(*args,file=sys.stderr, **kwargs)
 
+def elog(*args, **kwargs):
+	print(*args,file=sys.stderr, **kwargs)
+
+
 # TODO: search action, for comparing a function against ALL hashes in DB
 
 def usage():
@@ -138,9 +142,7 @@ def extract_BB_retdecLL(filepath, sqlite_con = None) -> int:
 					pass
 
 			count += 1
-			# print('/'+h)
-		# else:
-		# 	elog('end of search.')
+
 		prev = r
 
 	if skipCount > 0:
@@ -365,6 +367,9 @@ if "compare" in action:
 	funcnameFilename_hashobjs = {}
 	jaccard_dists = []
 
+	# print CSV header
+	print('filefunc0,filefunc1,permutations,jaccard_dist')
+
 	for funcName in funcNames.split(','):
 		rows = cur.execute("SELECT filename,fname,hashvals FROM funchash WHERE fname LIKE ? AND numperms=?", (funcName, MINHASH_PERMS))
 		for r in rows:
@@ -384,51 +389,14 @@ if "compare" in action:
 		jaccardi = m0.jaccard(m1)
 		jaccard_dists.append(jaccardi)
 
-		print(f"jaccard {filefunc0}|{filefunc1} on {MINHASH_PERMS} permus: {jaccardi}")
+		print(f"{filefunc0},{filefunc1},{MINHASH_PERMS},{jaccardi}")
 
 	# average jacard distance will show how well comparisons worked for this function across different architectures.
 	if len(jaccard_dists) > 0:
-		print(f"min jaccard dist: {min(jaccard_dists)}")
-		print(f"max jaccard dist: {max(jaccard_dists)}")
-		print(f"median jaccard dist: {statistics.median(jaccard_dists)}")
-		print(f"mean jaccard dist: {statistics.mean(jaccard_dists)}")
+		elog(f"min jaccard dist: {min(jaccard_dists)}")
+		elog(f"max jaccard dist: {max(jaccard_dists)}")
+		elog(f"median jaccard dist: {statistics.median(jaccard_dists)}")
+		elog(f"mean jaccard dist: {statistics.mean(jaccard_dists)}")
 
 
-
-	# else:
-	# 	# single function, cross-arch comparison
-	# 	funcName = funcNames
-
-	# 	rows = cur.execute("SELECT filename,fname,hashvals FROM funchash WHERE fname LIKE ? AND numperms=?", (funcNames, MINHASH_PERMS))
-
-	# 	filename_hashobjs = {}
-	# 	jaccard_dists = []
-
-	# 	for r in rows:
-	# 		filename = r[0]
-	# 		fname = r[1]
-	# 		hashvalStr = r[2]
-	# 		hashvals = [ int(i) for i in hashvalStr.split(',') ]
-	# 		print(f"{filename}:{fname}")
-	# 		filename_hashobjs[filename] = MinHash(hashvalues=hashvals)
-
-	# 	# do all combinations and compare them (jaccard distance is commutative, 
-	# 	# m0.jaccard(m1) == m1.jaccard(m0)
-	# 	for p in itertools.combinations(filename_hashobjs.keys(), 2):
-	# 		file0 = p[0]
-	# 		file1 = p[1]
-	# 		m0 = filename_hashobjs[file0]
-	# 		m1 = filename_hashobjs[file1]
-	# 		jaccardi = m0.jaccard(m1)
-	# 		jaccard_dists.append(jaccardi)
-
-	# 		print(f"jaccard {funcNames} {file0}:{file1} on {MINHASH_PERMS} permus: {jaccardi}")
-
-	# 	# average jacard distance will show how well comparisons worked for this function across different architectures.
-	# 	if len(jaccard_dists) > 0:
-	# 		print(f"min jaccard dist: {min(jaccard_dists)}")
-	# 		print(f"max jaccard dist: {max(jaccard_dists)}")
-	# 		print(f"median jaccard dist: {statistics.median(jaccard_dists)}")
-	# 		print(f"mean jaccard dist: {statistics.mean(jaccard_dists)}")
-
-print(f"done, elapsed {time.time() - start} seconds")
+elog(f"done, elapsed {time.time() - start} seconds")
