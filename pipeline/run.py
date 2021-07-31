@@ -15,18 +15,20 @@ import itertools
 import statistics
 
 
-DEBUG = True # can be turned off via flags
+VERBOSE = False # can be turned off via flags
 
 def debug(*args, **kwargs):
-	if DEBUG:
+	if VERBOSE:
 		print(*args,file=sys.stderr, **kwargs)
+
+# TODO: search action, for comparing a function against ALL hashes in DB
 
 def usage():
 	print("usage:\n%s <action>"%sys.argv[0] )
 	print("action can include extract, tokenize, hash, compare")
 	print('''
 		arguments:
-		-f funcion_name		: function name to evaluate during compare
+		-f funcion_name		: function name(s) to evaluate during compare (comma separated)
 		-p permutations		: number of permutations for minhash
 
 		''')
@@ -168,7 +170,7 @@ def tokenize(instruction):
 		
 		for s in shorteners:
 			if t.startswith(s):
-				# debug(f'replacing {t} with {s}')
+				debug(f'replacing {t} with {s}')
 				result_tokens.append(s)
 				replaced = True
 				break
@@ -176,14 +178,14 @@ def tokenize(instruction):
 			continue
 
 		elif t[:3] in intsizes:
-			# debug(f'dropping {t}')
+			debug(f'dropping {t}')
 			continue
 
 
 		elif t.startswith('%') and not ("(" in t):
 			# generic variable reference
 			newt = '%r'
-			# debug(f'replacing {t} with {newt}')
+			debug(f'replacing {t} with {newt}')
 			result_tokens.append(newt)
 
 		elif t == '!insn.addr': # stop processing
@@ -201,6 +203,7 @@ def tokenize(instruction):
 		# can use lookahead to determine nature of token
 	if result_tokens != []:
 		result_tokens.append(";")
+		debug(result_tokens)
 		return result_tokens # signify end of instruction
 	return None
 
@@ -215,7 +218,7 @@ if len(sys.argv) < 2:
 	usage()
 	exit(1)
 
-funcName = None
+funcNames = None
 
 opts, args = getopt.gnu_getopt(sys.argv[1:], 'hd:p:f:')
 for tup in opts:
@@ -228,7 +231,9 @@ for tup in opts:
 		elif o == '-p':
 			MINHASH_PERMS = int(a)
 		elif o == '-f':
-			funcName = a
+			funcNames = a
+		elif o == '-v':
+			VERBOSE = True
 
 
 action = args[0]
@@ -280,7 +285,7 @@ if "tokenize" in action:
 	
 		filename = row[0]
 		fname = row[1]
-		print(f"function: {filename}{fname}")
+		# print(f"function: {filename}{fname}")
 		llcode = row[2]
 		functokens = []
 
@@ -349,34 +354,37 @@ if "compare" in action:
 	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
 	cur = con.cursor()
 	
-	if funcName == None:
-		print("please specify function name to compare in -f ")
+	if funcNames == None:
+		print("please specify function name(s) to compare in -f ")
 		exit(1)
 
-	rows = cur.execute("SELECT filename,fname,hashvals FROM funchash WHERE fname LIKE ? AND numperms=?", (funcName, MINHASH_PERMS))
+	# if len(funcNames.split(',')) > 1:
+		# TODO implement cross-function comparison
 
-	filename_hashobjs = {}
+		# mapping < CONCAT(funcname,filename) : hashobjs>
+	funcnameFilename_hashobjs = {}
 	jaccard_dists = []
 
-	for r in rows:
-		filename = r[0]
-		fname = r[1]
-		hashvalStr = r[2]
-		hashvals = [ int(i) for i in hashvalStr.split(',') ]
-		print(f"{filename}:{fname}")
-		filename_hashobjs[filename] = MinHash(hashvalues=hashvals)
-
-	# do all combinations and compare them (jaccard distance is commutative, 
-	# m0.jaccard(m1) == m1.jaccard(m0)
-	for p in itertools.combinations(filename_hashobjs.keys(), 2):
-		file0 = p[0]
-		file1 = p[1]
-		m0 = filename_hashobjs[file0]
-		m1 = filename_hashobjs[file1]
+	for funcName in funcNames.split(','):
+		rows = cur.execute("SELECT filename,fname,hashvals FROM funchash WHERE fname LIKE ? AND numperms=?", (funcName, MINHASH_PERMS))
+		for r in rows:
+			filename = r[0]
+			fname = r[1]
+			fname_filename = filename + ":" + fname
+			hashvalStr = r[2]
+			hashvals = [ int(i) for i in hashvalStr.split(',') ]
+			# print(f"{filename}:{fname}")
+			funcnameFilename_hashobjs[fname_filename] = MinHash(hashvalues=hashvals)
+	# print(funcnameFilename_hashobjs)
+	for p in itertools.combinations(funcnameFilename_hashobjs.keys(), 2):
+		filefunc0 = p[0]
+		filefunc1 = p[1]
+		m0 = funcnameFilename_hashobjs[filefunc0]
+		m1 = funcnameFilename_hashobjs[filefunc1]
 		jaccardi = m0.jaccard(m1)
 		jaccard_dists.append(jaccardi)
 
-		print(f"jaccard {funcName} {file0}:{file1} on {MINHASH_PERMS} permus: {jaccardi}")
+		print(f"jaccard {filefunc0}|{filefunc1} on {MINHASH_PERMS} permus: {jaccardi}")
 
 	# average jacard distance will show how well comparisons worked for this function across different architectures.
 	if len(jaccard_dists) > 0:
@@ -385,10 +393,42 @@ if "compare" in action:
 		print(f"median jaccard dist: {statistics.median(jaccard_dists)}")
 		print(f"mean jaccard dist: {statistics.mean(jaccard_dists)}")
 
-if "hash" in action:
-	print(f"done, elapsed {time.time() - start}")
-	print(f"processed {fnhashCount} func hashes, skipped {fnSkipCount}")
 
 
+	# else:
+	# 	# single function, cross-arch comparison
+	# 	funcName = funcNames
 
+	# 	rows = cur.execute("SELECT filename,fname,hashvals FROM funchash WHERE fname LIKE ? AND numperms=?", (funcNames, MINHASH_PERMS))
 
+	# 	filename_hashobjs = {}
+	# 	jaccard_dists = []
+
+	# 	for r in rows:
+	# 		filename = r[0]
+	# 		fname = r[1]
+	# 		hashvalStr = r[2]
+	# 		hashvals = [ int(i) for i in hashvalStr.split(',') ]
+	# 		print(f"{filename}:{fname}")
+	# 		filename_hashobjs[filename] = MinHash(hashvalues=hashvals)
+
+	# 	# do all combinations and compare them (jaccard distance is commutative, 
+	# 	# m0.jaccard(m1) == m1.jaccard(m0)
+	# 	for p in itertools.combinations(filename_hashobjs.keys(), 2):
+	# 		file0 = p[0]
+	# 		file1 = p[1]
+	# 		m0 = filename_hashobjs[file0]
+	# 		m1 = filename_hashobjs[file1]
+	# 		jaccardi = m0.jaccard(m1)
+	# 		jaccard_dists.append(jaccardi)
+
+	# 		print(f"jaccard {funcNames} {file0}:{file1} on {MINHASH_PERMS} permus: {jaccardi}")
+
+	# 	# average jacard distance will show how well comparisons worked for this function across different architectures.
+	# 	if len(jaccard_dists) > 0:
+	# 		print(f"min jaccard dist: {min(jaccard_dists)}")
+	# 		print(f"max jaccard dist: {max(jaccard_dists)}")
+	# 		print(f"median jaccard dist: {statistics.median(jaccard_dists)}")
+	# 		print(f"mean jaccard dist: {statistics.mean(jaccard_dists)}")
+
+print(f"done, elapsed {time.time() - start} seconds")
