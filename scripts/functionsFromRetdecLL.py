@@ -10,7 +10,7 @@ if len(sys.argv) < 2:
 def elog(s, **kwargs):
 	print(s, **kwargs, file=sys.stderr)
 
-# function regex for llvm ir from retde
+# function regex for llvm ir from retdec
 func_re = r'define .* (@.*){\n'
 pattern = re.compile(func_re)
 
