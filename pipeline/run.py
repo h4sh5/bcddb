@@ -204,7 +204,7 @@ def tokenize(instruction):
 
 		# can use lookahead to determine nature of token
 	if result_tokens != []:
-		result_tokens.append(";")
+		#result_tokens.append(";")
 		debug(result_tokens)
 		return result_tokens # signify end of instruction
 	return None
@@ -277,14 +277,12 @@ if "tokenize" in action:
 	indbpath = os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract'])
 	con = sqlite3.connect(indbpath)
 	cur = con.cursor()
-	# XXX take one for example
+	cur.execute('''CREATE TABLE IF NOT EXISTS token (filename VARCHAR, fname VARCHAR, tokens TEXT, PRIMARY KEY(filename, fname))''')
+	con.commit()
 	rows = cur.execute("SELECT filename, fname, llcode FROM function ORDER BY RANDOM()")
 
-	fnhashCount = 0
-	fnSkipCount = 0
-
 	for row in rows:
-	
+		# elog(row[0])
 		filename = row[0]
 		fname = row[1]
 		# print(f"function: {filename}{fname}")
@@ -302,55 +300,77 @@ if "tokenize" in action:
 			if tokens:		
 				# print(tokens) # each instruction
 				functokens.extend(tokens)
+				# insert into DB
+		elog(f"inserting for {filename}:{fname}")
+		functokens = ' '.join(functokens)
+		insert_cur = con.cursor()  # cant use the same cursor 
+		try:
+			insert_cur.execute("INSERT into token (filename, fname, tokens) values (?, ?, ?)", (filename, fname, functokens))
+		except sqlite3.IntegrityError as e:
+			# elog('IntegrityError:', e)
+			pass
+		con.commit()
 
-		if "hash" in action:
+if "hash" in action:
 
-			'''
-			# minhashes can be computed in bulk!
-			# takes bytes, so need encoding!
-			data = [[b'token1', b'token2', b'token3'],
-				  [b'token4', b'token5', b'token6']]
-			minhashes = MinHash.bulk(data, num_perm=64)
-			'''
-			con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
-			cur = con.cursor()
-			# TODO: create single hash number table to store each value individually 
-			# for more scalable comparison
-			cur.execute('''
-				CREATE TABLE IF NOT EXISTS funchash (filename VARCHAR, fname VARCHAR, 
-									numperms INT, hashvals VARCHAR, PRIMARY KEY (filename, fname, numperms))''')
+	'''
+	# minhashes can be computed in bulk!
+	# takes bytes, so need encoding!
+	data = [[b'token1', b'token2', b'token3'],
+		  [b'token4', b'token5', b'token6']]
+	minhashes = MinHash.bulk(data, num_perm=64)
+	'''
+	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
+	cur = con.cursor()
+	# TODO: create single hash number table to store each value individually 
+	# for more scalable comparison
+	cur.execute('''
+		CREATE TABLE IF NOT EXISTS funchash (filename VARCHAR, fname VARCHAR, 
+							numperms INT, hashvals VARCHAR, PRIMARY KEY (filename, fname, numperms))''')
+	con.commit()
+
+	tokencon =  sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract']))
+	tokencur = 	tokencon.cursor()
+
+
+	fnhashCount = 0
+	fnSkipCount = 0
+	
+	rows = tokencur.execute("SELECT filename, fname, tokens from token")
+	for row in rows:
+		filename = row[0]
+		fname = row[1]
+		functokens = row[2]
+
+		# can also use LeanMinHash to save memory/space!
+		 #, hashfunc=mmh3.hash)
+		m = MinHash(num_perm=MINHASH_PERMS)
+
+		for t in functokens.split():
+			m.update(t.encode('utf8'))
+			# m.update(t)
+
+		lm = LeanMinHash(m)
+		hashvals = str(list(lm.hashvalues)).lstrip('[').rstrip(']')
+		# debug('hash:', hashvals)
+		try:
+			cur.execute("INSERT INTO funchash (filename,fname, numperms, hashvals) values(?,?,?,?)",
+				(
+					filename, 
+					fname, 
+					MINHASH_PERMS, 
+					hashvals
+				)
+			)
 			con.commit()
-			if functokens:
-
-				# can also use LeanMinHash to save memory/space!
-				 #, hashfunc=mmh3.hash)
-				m = MinHash(num_perm=MINHASH_PERMS)
-
-				for t in functokens:
-					m.update(t.encode('utf8'))
-					# m.update(t)
-
-				lm = LeanMinHash(m)
-				hashvals = str(list(lm.hashvalues)).lstrip('[').rstrip(']')
-				# debug('hash:', hashvals)
-				try:
-					cur.execute("INSERT INTO funchash (filename,fname, numperms, hashvals) values(?,?,?,?)",
-						(
-							filename, 
-							fname, 
-							MINHASH_PERMS, 
-							hashvals
-						)
-					)
-					con.commit()
-					fnhashCount += 1
-				
-				except sqlite3.IntegrityError:
-					fnSkipCount += 1
-					pass
-				
-				# import code
-				# code.interact(local=locals())
+			fnhashCount += 1
+		
+		except sqlite3.IntegrityError:
+			fnSkipCount += 1
+			pass
+		
+		# import code
+		# code.interact(local=locals())
 
 if "compare" in action:
 	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
