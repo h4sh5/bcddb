@@ -9,6 +9,7 @@ import time
 
 from datasketch import MinHash, LeanMinHash
 import itertools
+import ssdeep
 # import murmurhash
 # import mmh3
 
@@ -16,6 +17,7 @@ import statistics
 
 
 VERBOSE = False # can be turned off via flags
+ALGO = "ssdeep"
 
 def debug(*args, **kwargs):
 	if VERBOSE:
@@ -29,11 +31,14 @@ def elog(*args, **kwargs):
 
 def usage():
 	print("usage:\n%s <action>"%sys.argv[0] )
-	print("action can include extract, tokenize, hash, compare")
+	print("action can include extract, tokenize, minhash, ssdeep, ssdeep_ll, compare, compare_ll")
 	print('''
 		arguments:
 		-f funcion_name		: function name(s) to evaluate during compare (comma separated)
+		-a algorithm		: hash algorithm to use during comparison (minhash|ssdeep)
 		-p permutations		: number of permutations for minhash
+		-d path/to/data		: path to data directory)
+		-v		: verbose debugging messages
 
 		''')
 
@@ -222,7 +227,7 @@ if len(sys.argv) < 2:
 
 funcNames = None
 
-opts, args = getopt.gnu_getopt(sys.argv[1:], 'hd:p:f:')
+opts, args = getopt.gnu_getopt(sys.argv[1:], 'hvd:a:p:f:')
 for tup in opts:
 		o,a = tup[0], tup[1]
 		if o == '-h':
@@ -234,6 +239,8 @@ for tup in opts:
 			MINHASH_PERMS = int(a)
 		elif o == '-f':
 			funcNames = a
+		elif o == '-a':
+			ALGO = a
 		elif o == '-v':
 			VERBOSE = True
 
@@ -242,7 +249,7 @@ action = args[0]
 
 start = time.time()
 
-if "extract" in action:
+if "extract" == action:
 
 	# create db
 	dbpath = os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract'])
@@ -273,13 +280,13 @@ if "extract" in action:
 
 
 # TODO decouple token and hash? or later?
-if "tokenize" in action:
+if "tokenize" == action:
 	indbpath = os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract'])
 	con = sqlite3.connect(indbpath)
 	cur = con.cursor()
 	cur.execute('''CREATE TABLE IF NOT EXISTS token (filename VARCHAR, fname VARCHAR, tokens TEXT, PRIMARY KEY(filename, fname))''')
 	con.commit()
-	rows = cur.execute("SELECT filename, fname, llcode FROM function ORDER BY RANDOM()")
+	rows = cur.execute("SELECT filename, fname, llcode FROM function")
 
 	for row in rows:
 		# elog(row[0])
@@ -301,7 +308,7 @@ if "tokenize" in action:
 				# print(tokens) # each instruction
 				functokens.extend(tokens)
 				# insert into DB
-		elog(f"inserting for {filename}:{fname}")
+		debug(f"inserting for {filename}:{fname}")
 		functokens = ' '.join(functokens)
 		insert_cur = con.cursor()  # cant use the same cursor 
 		try:
@@ -311,8 +318,7 @@ if "tokenize" in action:
 			pass
 		con.commit()
 
-if "hash" in action:
-
+if "minhash" == action:
 	'''
 	# minhashes can be computed in bulk!
 	# takes bytes, so need encoding!
@@ -325,7 +331,7 @@ if "hash" in action:
 	# TODO: create single hash number table to store each value individually 
 	# for more scalable comparison
 	cur.execute('''
-		CREATE TABLE IF NOT EXISTS funchash (filename VARCHAR, fname VARCHAR, 
+		CREATE TABLE IF NOT EXISTS funcminhash (filename VARCHAR, fname VARCHAR, 
 							numperms INT, hashvals VARCHAR, PRIMARY KEY (filename, fname, numperms))''')
 	con.commit()
 
@@ -335,7 +341,7 @@ if "hash" in action:
 
 	fnhashCount = 0
 	fnSkipCount = 0
-	
+
 	rows = tokencur.execute("SELECT filename, fname, tokens from token")
 	for row in rows:
 		filename = row[0]
@@ -354,7 +360,7 @@ if "hash" in action:
 		hashvals = str(list(lm.hashvalues)).lstrip('[').rstrip(']')
 		# debug('hash:', hashvals)
 		try:
-			cur.execute("INSERT INTO funchash (filename,fname, numperms, hashvals) values(?,?,?,?)",
+			cur.execute("INSERT INTO funcminhash (filename,fname, numperms, hashvals) values(?,?,?,?)",
 				(
 					filename, 
 					fname, 
@@ -372,7 +378,92 @@ if "hash" in action:
 		# import code
 		# code.interact(local=locals())
 
+if "ssdeep" == action:
+	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
+	cur = con.cursor()
+	# TODO: create single hash number table to store each value individually 
+	# for more scalable comparison
+	cur.execute('''
+		CREATE TABLE IF NOT EXISTS funcssdeep (filename VARCHAR, fname VARCHAR, 
+						ssdeep VARCHAR, PRIMARY KEY (filename, fname))''')
+	con.commit()
+
+	tokencon =  sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract']))
+	tokencur = 	tokencon.cursor()
+
+
+	fnhashCount = 0
+	fnSkipCount = 0
+
+	rows = tokencur.execute("SELECT filename, fname, tokens from token")
+	for row in rows:
+		filename = row[0]
+		fname = row[1]
+		functokens = row[2]
+		fhash = ssdeep.hash(functokens)
+		debug(f'ssdeep of {filename}:{fname} ', fhash)
+		try:
+			cur.execute("INSERT INTO funcssdeep (filename,fname, ssdeep) values(?,?,?)",
+				(
+					filename, 
+					fname,
+					fhash
+				)
+			)
+			con.commit()
+			fnhashCount += 1
+		
+		except sqlite3.IntegrityError:
+			fnSkipCount += 1
+			pass
+	elog(f"calculated {fnhashCount} hashes, skipped {fnSkipCount}")
+
+
+if "ssdeep_ll" == action:
+
+	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
+	cur = con.cursor()
+	# TODO: create single hash number table to store each value individually 
+	# for more scalable comparison
+	cur.execute('''
+		CREATE TABLE IF NOT EXISTS funcll_ssdeep (filename VARCHAR, fname VARCHAR, 
+						ssdeep VARCHAR, PRIMARY KEY (filename, fname))''')
+	con.commit()
+
+	
+
+	codecon =  sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract']))
+	codecur = 	codecon.cursor()
+
+
+	fnhashCount = 0
+	fnSkipCount = 0
+
+	rows = codecur.execute("SELECT filename, fname, llcode from function")
+	for row in rows:
+		filename = row[0]
+		fname = row[1]
+		llcode = row[2]
+		fhash = ssdeep.hash(llcode)
+		debug(f'ssdeep of {filename}:{fname} ', fhash)
+		try:
+			cur.execute("INSERT INTO funcll_ssdeep (filename,fname, ssdeep) values(?,?,?)",
+				(
+					filename, 
+					fname,
+					fhash
+				)
+			)
+			con.commit()
+			fnhashCount += 1
+		
+		except sqlite3.IntegrityError:
+			fnSkipCount += 1
+			pass
+	elog(f"calculated {fnhashCount} hashes, skipped {fnSkipCount}")
+
 if "compare" in action:
+
 	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
 	cur = con.cursor()
 	
@@ -380,43 +471,81 @@ if "compare" in action:
 		print("please specify function name(s) to compare in -f ")
 		exit(1)
 
-	# if len(funcNames.split(',')) > 1:
-		# TODO implement cross-function comparison
-
+	if ALGO == "minhash":
 		# mapping < CONCAT(funcname,filename) : hashobjs>
-	funcnameFilename_hashobjs = {}
-	jaccard_dists = []
+		funcnameFilename_hashobjs = {}
+		jaccard_dists = []
 
-	# print CSV header
-	print('filefunc0,filefunc1,permutations,jaccard_dist')
+		# print CSV header
+		print('filefunc0,filefunc1,permutations,jaccard_dist')
 
-	for funcName in funcNames.split(','):
-		rows = cur.execute("SELECT filename,fname,hashvals FROM funchash WHERE fname LIKE ? AND numperms=?", (funcName, MINHASH_PERMS))
-		for r in rows:
-			filename = r[0]
-			fname = r[1]
-			fname_filename = filename + ":" + fname
-			hashvalStr = r[2]
-			hashvals = [ int(i) for i in hashvalStr.split(',') ]
-			# print(f"{filename}:{fname}")
-			funcnameFilename_hashobjs[fname_filename] = MinHash(hashvalues=hashvals)
-	# print(funcnameFilename_hashobjs)
-	for p in itertools.combinations(funcnameFilename_hashobjs.keys(), 2):
-		filefunc0 = p[0]
-		filefunc1 = p[1]
-		m0 = funcnameFilename_hashobjs[filefunc0]
-		m1 = funcnameFilename_hashobjs[filefunc1]
-		jaccardi = m0.jaccard(m1)
-		jaccard_dists.append(jaccardi)
+		for funcName in funcNames.split(','):
+			rows = cur.execute("SELECT filename,fname,hashvals FROM funchash WHERE fname LIKE ? AND numperms=?", (funcName, MINHASH_PERMS))
+			for r in rows:
+				filename = r[0]
+				fname = r[1]
+				fname_filename = filename + ":" + fname
+				hashvalStr = r[2]
+				hashvals = [ int(i) for i in hashvalStr.split(',') ]
+				# print(f"{filename}:{fname}")
+				funcnameFilename_hashobjs[fname_filename] = MinHash(hashvalues=hashvals)
+		# print(funcnameFilename_hashobjs)
+		for p in itertools.combinations(funcnameFilename_hashobjs.keys(), 2):
+			filefunc0 = p[0]
+			filefunc1 = p[1]
+			m0 = funcnameFilename_hashobjs[filefunc0]
+			m1 = funcnameFilename_hashobjs[filefunc1]
+			jaccardi = m0.jaccard(m1)
+			jaccard_dists.append(jaccardi)
 
-		print(f"{filefunc0},{filefunc1},{MINHASH_PERMS},{jaccardi}")
+			print(f"{filefunc0},{filefunc1},{MINHASH_PERMS},{jaccardi}")
+		# average jacard distance will show how well comparisons worked for this function across different architectures.
+		if len(jaccard_dists) > 0:
+			elog(f"min jaccard dist: {min(jaccard_dists)}")
+			elog(f"max jaccard dist: {max(jaccard_dists)}")
+			elog(f"median jaccard dist: {statistics.median(jaccard_dists)}")
+			elog(f"mean jaccard dist: {statistics.mean(jaccard_dists)}")
 
-	# average jacard distance will show how well comparisons worked for this function across different architectures.
-	if len(jaccard_dists) > 0:
-		elog(f"min jaccard dist: {min(jaccard_dists)}")
-		elog(f"max jaccard dist: {max(jaccard_dists)}")
-		elog(f"median jaccard dist: {statistics.median(jaccard_dists)}")
-		elog(f"mean jaccard dist: {statistics.mean(jaccard_dists)}")
 
+	elif ALGO == "ssdeep":
+		tablename = 'funcssdeep'
+		if "ll" in action:
+			tablename = 'funcll_ssdeep'
+
+		funcnameFilename_hashobjs = {}
+		scores = []
+
+		# print CSV header
+		print('filefunc0,filefunc1,score')
+
+		for funcName in funcNames.split(','):
+			rows = cur.execute("SELECT filename,fname,ssdeep FROM %s WHERE fname LIKE ?" % tablename, (funcName,))
+			for r in rows:
+				filename = r[0]
+				fname = r[1]
+				fname_filename = filename + ":" + fname
+				ssdeepStr = r[2]
+				# debug(f"{filename}:{fname}")
+				funcnameFilename_hashobjs[fname_filename] = ssdeepStr
+		# print(funcnameFilename_hashobjs)
+		for p in itertools.combinations(funcnameFilename_hashobjs.keys(), 2):
+			filefunc0 = p[0]
+			filefunc1 = p[1]
+			s0 = funcnameFilename_hashobjs[filefunc0]
+			s1 = funcnameFilename_hashobjs[filefunc1]
+			score = ssdeep.compare(s0, s1)
+			scores.append(score)
+
+			
+
+			print(f"{filefunc0},{filefunc1},{score}")
+
+		if len(scores) > 0:
+			elog(f"min ssdeep score: {min(scores)}")
+			elog(f"max ssdeep score: {max(scores)}")
+			elog(f"median ssdeep score: {statistics.median(scores)}")
+			elog(f"mean ssdeep score: {statistics.mean(scores)}")
+
+	
 
 elog(f"done, elapsed {time.time() - start} seconds")
