@@ -377,6 +377,7 @@ if "minhash" == action:
 		
 		# import code
 		# code.interact(local=locals())
+	elog(f"calculated {fnhashCount} hashes, skipped {fnSkipCount}")
 
 if "ssdeep" == action:
 	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
@@ -480,7 +481,7 @@ if "compare" in action:
 		print('filefunc0,filefunc1,permutations,jaccard_dist')
 
 		for funcName in funcNames.split(','):
-			rows = cur.execute("SELECT filename,fname,hashvals FROM funchash WHERE fname LIKE ? AND numperms=?", (funcName, MINHASH_PERMS))
+			rows = cur.execute("SELECT filename,fname,hashvals FROM funcminhash WHERE fname LIKE ? AND numperms=?", (funcName, MINHASH_PERMS))
 			for r in rows:
 				filename = r[0]
 				fname = r[1]
