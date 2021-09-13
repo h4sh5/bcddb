@@ -12,6 +12,8 @@ import itertools
 import ssdeep
 # import murmurhash
 # import mmh3
+from simhash import Simhash
+
 
 import statistics
 
@@ -31,12 +33,12 @@ def elog(*args, **kwargs):
 
 def usage():
 	print("usage:\n%s <action>"%sys.argv[0] )
-	print("action can include extract, tokenize, minhash, ssdeep, ssdeep_ll, compare, compare_ll")
+	print("action can include extract, tokenize, minhash, ssdeep, ssdeep_ll, simhash, simhash_ft compare, compare_ll")
 	print('''
 		arguments:
 		-f funcion_name		: function name(s) to evaluate during compare (comma separated)
 		-a algorithm		: hash algorithm to use during comparison (minhash|ssdeep)
-		-p permutations		: number of permutations for minhash
+		-p permutations		: number of permutations for minhash, or tolerance k for simhash
 		-d path/to/data		: path to data directory)
 		-v		: verbose debugging messages
 
@@ -217,6 +219,17 @@ def tokenize(instruction):
 
 def mmh(d):
     return murmurhash.hash(d)
+
+
+## for simhash
+def get_features(s):
+	# width adjustable
+    width = 3
+    s = s.lower()
+    s = re.sub(r'[^\w]+', '', s)
+    return [s[i:i + width] for i in range(max(len(s) - width + 1, 1))]
+
+
 
 
 ############################ main
@@ -463,6 +476,114 @@ if "ssdeep_ll" == action:
 			pass
 	elog(f"calculated {fnhashCount} hashes, skipped {fnSkipCount}")
 
+
+if "simhash_ft" == action:
+	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
+	cur = con.cursor()
+	cur.execute('''
+		CREATE TABLE IF NOT EXISTS funcsimhash_ft (filename VARCHAR, fname VARCHAR, 
+						simhash VARCHAR, PRIMARY KEY (filename, fname))''')
+	con.commit()
+
+	fnhashCount = 0
+	fnSkipCount = 0
+
+	tokencon =  sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract']))
+	tokencur = 	tokencon.cursor()
+
+	rows = tokencur.execute("SELECT filename, fname, tokens from token")
+	for row in rows:
+		filename = row[0]
+		fname = row[1]
+		functokens = row[2]
+
+		# if value too large to be INTEGER, store as string
+		simh = str(Simhash(get_features(functokens)).value) 
+		# test with and without get_features?
+		# simh = str(Simhash(functokens).value)
+
+		# for t in functokens.split():
+		# 	m.update(t.encode('utf8'))
+		# 	# m.update(t)
+
+	
+		
+		# debug('hash:', hashvals)
+		try:
+			cur.execute("INSERT INTO funcsimhash_ft (filename,fname, simhash) values(?,?,?)",
+				(
+					filename, 
+					fname, 
+					simh
+				)
+			)
+			con.commit()
+			fnhashCount += 1
+		
+		except sqlite3.IntegrityError:
+			fnSkipCount += 1
+			pass
+		
+		# import code
+		# code.interact(local=locals())
+	elog(f"calculated {fnhashCount} hashes, skipped {fnSkipCount}")
+
+if "simhash" == action:
+	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
+	cur = con.cursor()
+	cur.execute('''
+		CREATE TABLE IF NOT EXISTS funcsimhash (filename VARCHAR, fname VARCHAR, 
+						simhash VARCHAR, PRIMARY KEY (filename, fname))''')
+	con.commit()
+
+	fnhashCount = 0
+	fnSkipCount = 0
+
+	tokencon =  sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract']))
+	tokencur = 	tokencon.cursor()
+
+	rows = tokencur.execute("SELECT filename, fname, tokens from token")
+	for row in rows:
+		filename = row[0]
+		fname = row[1]
+		functokens = row[2]
+
+		# if value too large to be INTEGER, store as string
+		# simh = str(Simhash(get_features(functokens)).value) 
+		# test with and without get_features?
+		simh = str(Simhash(functokens).value)
+
+		# for t in functokens.split():
+		# 	m.update(t.encode('utf8'))
+		# 	# m.update(t)
+
+	
+		
+		# debug('hash:', hashvals)
+		try:
+			cur.execute("INSERT INTO funcsimhash (filename,fname, simhash) values(?,?,?)",
+				(
+					filename, 
+					fname, 
+					simh
+				)
+			)
+			con.commit()
+			fnhashCount += 1
+		
+		except sqlite3.IntegrityError:
+			fnSkipCount += 1
+			pass
+		
+		# import code
+		# code.interact(local=locals())
+	elog(f"calculated {fnhashCount} hashes, skipped {fnSkipCount}")
+
+
+
+
+
+
 if "compare" in action:
 
 	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
@@ -546,6 +667,47 @@ if "compare" in action:
 			elog(f"max ssdeep score: {max(scores)}")
 			elog(f"median ssdeep score: {statistics.median(scores)}")
 			elog(f"mean ssdeep score: {statistics.mean(scores)}")
+
+	elif ALGO == "simhash" or ALGO == "simhash_ft":
+		if ALGO	 == "simhash":
+			tablename = 'funcsimhash'
+		elif ALGO == "simhash_ft":
+			tablename = 'funcsimhash_ft'
+
+
+		funcnameFilename_hashobjs = {}
+		distances = []
+
+		# print CSV header
+		print('filefunc0,filefunc1,distance_simhash')
+
+		for funcName in funcNames.split(','):
+			rows = cur.execute("SELECT filename,fname,simhash FROM %s WHERE fname LIKE ?" % tablename, (funcName,))
+			for r in rows:
+				filename = r[0]
+				fname = r[1]
+				fname_filename = filename + ":" + fname
+				simhashStr = r[2]
+				# debug(f"{filename}:{fname}")
+				funcnameFilename_hashobjs[fname_filename] = int(simhashStr)
+		# print(funcnameFilename_hashobjs)
+		for p in itertools.combinations(funcnameFilename_hashobjs.keys(), 2):
+			filefunc0 = p[0]
+			filefunc1 = p[1]
+			s0 = funcnameFilename_hashobjs[filefunc0]
+			s1 = funcnameFilename_hashobjs[filefunc1]
+			distance = Simhash(s0).distance(Simhash(s1))
+			distances.append(distance)
+
+		
+			print(f"{filefunc0},{filefunc1},{distance}")
+
+		if len(distances) > 0:
+			elog(f"min : {min(distances)}")
+			elog(f"max simhash distance: {max(distances)}")
+			elog(f"median simhash distance: {statistics.median(distances)}")
+			elog(f"mean simhash distance: {statistics.mean(distances)}")
+
 
 	
 
