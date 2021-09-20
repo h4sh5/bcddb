@@ -12,7 +12,9 @@ import itertools
 import ssdeep
 # import murmurhash
 # import mmh3
-from simhash import Simhash
+# simhash pure python is SLOW
+# from simhash import Simhash
+from pysimhash import SimHash
 
 
 import statistics
@@ -20,6 +22,7 @@ import statistics
 
 VERBOSE = False # can be turned off via flags
 ALGO = "ssdeep"
+THRESHOLD = None
 
 def debug(*args, **kwargs):
 	if VERBOSE:
@@ -33,13 +36,14 @@ def elog(*args, **kwargs):
 
 def usage():
 	print("usage:\n%s <action>"%sys.argv[0] )
-	print("action can include extract, tokenize, minhash, ssdeep, ssdeep_ll, simhash, simhash_ft compare, compare_ll")
+	print("action can include extract, tokenize, minhash, ssdeep, ssdeep_ll, simhash, simhash_ft compare, compare_ll, confusion_matrix")
 	print('''
 		arguments:
 		-f funcion_name		: function name(s) to evaluate during compare (comma separated)
 		-a algorithm		: hash algorithm to use during comparison (minhash|ssdeep)
 		-p permutations		: number of permutations for minhash, or tolerance k for simhash
 		-d path/to/data		: path to data directory)
+		-t threshold		: threshold for matching in minhash and simhash (e.g 0.5 for minhash, 10 for simhash)
 		-v		: verbose debugging messages
 
 		''')
@@ -240,7 +244,7 @@ if len(sys.argv) < 2:
 
 funcNames = None
 
-opts, args = getopt.gnu_getopt(sys.argv[1:], 'hvd:a:p:f:')
+opts, args = getopt.gnu_getopt(sys.argv[1:], 'hvd:a:t:p:f:')
 for tup in opts:
 		o,a = tup[0], tup[1]
 		if o == '-h':
@@ -256,6 +260,8 @@ for tup in opts:
 			ALGO = a
 		elif o == '-v':
 			VERBOSE = True
+		elif o == '-t':
+			THRESHOLD = float(a)
 
 
 action = args[0]
@@ -477,56 +483,56 @@ if "ssdeep_ll" == action:
 	elog(f"calculated {fnhashCount} hashes, skipped {fnSkipCount}")
 
 
-if "simhash_ft" == action:
-	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
-	cur = con.cursor()
-	cur.execute('''
-		CREATE TABLE IF NOT EXISTS funcsimhash_ft (filename VARCHAR, fname VARCHAR, 
-						simhash VARCHAR, PRIMARY KEY (filename, fname))''')
-	con.commit()
+# if "simhash_ft" == action:
+# 	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
+# 	cur = con.cursor()
+# 	cur.execute('''
+# 		CREATE TABLE IF NOT EXISTS funcsimhash_ft (filename VARCHAR, fname VARCHAR, 
+# 						simhash VARCHAR, PRIMARY KEY (filename, fname))''')
+# 	con.commit()
 
-	fnhashCount = 0
-	fnSkipCount = 0
+# 	fnhashCount = 0
+# 	fnSkipCount = 0
 
-	tokencon =  sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract']))
-	tokencur = 	tokencon.cursor()
+# 	tokencon =  sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract']))
+# 	tokencur = 	tokencon.cursor()
 
-	rows = tokencur.execute("SELECT filename, fname, tokens from token")
-	for row in rows:
-		filename = row[0]
-		fname = row[1]
-		functokens = row[2]
+# 	rows = tokencur.execute("SELECT filename, fname, tokens from token")
+# 	for row in rows:
+# 		filename = row[0]
+# 		fname = row[1]
+# 		functokens = row[2]
 
-		# if value too large to be INTEGER, store as string
-		simh = str(Simhash(get_features(functokens)).value) 
-		# test with and without get_features?
-		# simh = str(Simhash(functokens).value)
+# 		# if value too large to be INTEGER, store as string
+# 		simh = str(Simhash(get_features(functokens)).value) 
+# 		# test with and without get_features?
+# 		# simh = str(Simhash(functokens).value)
 
-		# for t in functokens.split():
-		# 	m.update(t.encode('utf8'))
-		# 	# m.update(t)
+# 		# for t in functokens.split():
+# 		# 	m.update(t.encode('utf8'))
+# 		# 	# m.update(t)
 
 	
 		
-		# debug('hash:', hashvals)
-		try:
-			cur.execute("INSERT INTO funcsimhash_ft (filename,fname, simhash) values(?,?,?)",
-				(
-					filename, 
-					fname, 
-					simh
-				)
-			)
-			con.commit()
-			fnhashCount += 1
+# 		# debug('hash:', hashvals)
+# 		try:
+# 			cur.execute("INSERT INTO funcsimhash_ft (filename,fname, simhash) values(?,?,?)",
+# 				(
+# 					filename, 
+# 					fname, 
+# 					simh
+# 				)
+# 			)
+# 			con.commit()
+# 			fnhashCount += 1
 		
-		except sqlite3.IntegrityError:
-			fnSkipCount += 1
-			pass
+# 		except sqlite3.IntegrityError:
+# 			fnSkipCount += 1
+# 			pass
 		
-		# import code
-		# code.interact(local=locals())
-	elog(f"calculated {fnhashCount} hashes, skipped {fnSkipCount}")
+# 		# import code
+# 		# code.interact(local=locals())
+# 	elog(f"calculated {fnhashCount} hashes, skipped {fnSkipCount}")
 
 if "simhash" == action:
 	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
@@ -551,7 +557,7 @@ if "simhash" == action:
 		# if value too large to be INTEGER, store as string
 		# simh = str(Simhash(get_features(functokens)).value) 
 		# test with and without get_features?
-		simh = str(Simhash(functokens).value)
+		simh = str(SimHash(functokens, 64, 16).value())
 
 		# for t in functokens.split():
 		# 	m.update(t.encode('utf8'))
@@ -669,10 +675,10 @@ if "compare" in action:
 			elog(f"mean ssdeep score: {statistics.mean(scores)}")
 
 	elif ALGO == "simhash" or ALGO == "simhash_ft":
-		if ALGO	 == "simhash":
-			tablename = 'funcsimhash'
-		elif ALGO == "simhash_ft":
-			tablename = 'funcsimhash_ft'
+		# if ALGO	 == "simhash":
+		# 	tablename = 'funcsimhash'
+		# elif ALGO == "simhash_ft":
+		# 	tablename = 'funcsimhash_ft'
 
 
 		funcnameFilename_hashobjs = {}
@@ -689,14 +695,15 @@ if "compare" in action:
 				fname_filename = filename + ":" + fname
 				simhashStr = r[2]
 				# debug(f"{filename}:{fname}")
-				funcnameFilename_hashobjs[fname_filename] = int(simhashStr)
+				funcnameFilename_hashobjs[fname_filename] = simhashStr
 		# print(funcnameFilename_hashobjs)
 		for p in itertools.combinations(funcnameFilename_hashobjs.keys(), 2):
 			filefunc0 = p[0]
 			filefunc1 = p[1]
 			s0 = funcnameFilename_hashobjs[filefunc0]
 			s1 = funcnameFilename_hashobjs[filefunc1]
-			distance = Simhash(s0).distance(Simhash(s1))
+			# distance = Simhash(s0).distance(Simhash(s1))
+			distance = SimHash(s0, 64, 16).distance(s1, 64, 16)
 			distances.append(distance)
 
 		
@@ -708,7 +715,171 @@ if "compare" in action:
 			elog(f"median simhash distance: {statistics.median(distances)}")
 			elog(f"mean simhash distance: {statistics.mean(distances)}")
 
-
+# confusion matrix
+if "confusion" in action:
+	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
+	cur = con.cursor()
 	
+	if ALGO == "minhash":
+
+		if THRESHOLD == None:
+			THRESHOLD = 0.5
+
+		# mapping < CONCAT(funcname,filename) : hashobjs>
+		funcnameFilename_hashobjs = {}
+		jaccard_dists = []
+
+		# print CSV header
+		# print('filefunc0,filefunc1,permutations,jaccard_dist')
+
+		# true pos, false negatie ..
+		tpos, fneg, fpos, tneg = 0,0,0,0
+
+		# get evyerthing
+		rows = cur.execute("SELECT filename,fname,hashvals FROM funcminhash WHERE numperms=?", (MINHASH_PERMS,))
+		for r in rows:
+			filename = r[0]
+			fname = r[1]
+			fname_filename = filename + ":" + fname
+			hashvalStr = r[2]
+			hashvals = [ int(i) for i in hashvalStr.split(',') ]
+			# print(f"{filename}:{fname}")
+			funcnameFilename_hashobjs[fname_filename] = MinHash(hashvalues=hashvals)
+		# print(funcnameFilename_hashobjs)
+		for p in itertools.combinations(funcnameFilename_hashobjs.keys(), 2):
+			filefunc0 = p[0]
+			filefunc1 = p[1]
+			m0 = funcnameFilename_hashobjs[filefunc0]
+			m1 = funcnameFilename_hashobjs[filefunc1]
+			jaccardi = m0.jaccard(m1)
+			# jaccard_dists.append(jaccardi)
+
+			f0 = filefunc0.split(":")[1]
+			f1 = filefunc1.split(":")[1]
+			if (f0 == f1): # same func name
+				if jaccardi >= THRESHOLD:
+					tpos += 1
+				else:
+					fneg += 1
+			else: # diff function name
+				if jaccardi >= THRESHOLD:
+					fpos += 1
+				else:
+					tneg += 1
+
+
+		print(f"threshold:{THRESHOLD}\ntp:{tpos}\ntn:{tneg}\nfp:{fpos}\nfn:{fneg}")
+		print('''
+|minhash confusion matrix|match|no match|
+|------------------------|-----|---------|
+|\tsame funcname|{:>8}|{:>9}|
+|\tdiff funcname|{:>8}|{:>9}|
+		'''.format(tpos,fneg,fpos,tneg))
+		# print("minhash confusion matrix")
+
+
+	elif ALGO == "ssdeep":
+
+		if THRESHOLD == None:
+			THRESHOLD = 0
+
+		tablename = 'funcssdeep'
+		if "ll" in action:
+			tablename = 'funcll_ssdeep'
+
+		funcnameFilename_hashobjs = {}
+		tpos, fneg, fpos, tneg = 0,0,0,0
+
+		rows = cur.execute("SELECT filename,fname,ssdeep FROM %s" % tablename)
+		for r in rows:
+			filename = r[0]
+			fname = r[1]
+			fname_filename = filename + ":" + fname
+			ssdeepStr = r[2]
+			# debug(f"{filename}:{fname}")
+			funcnameFilename_hashobjs[fname_filename] = ssdeepStr
+		# print(funcnameFilename_hashobjs)
+		for p in itertools.combinations(funcnameFilename_hashobjs.keys(), 2):
+			filefunc0 = p[0]
+			filefunc1 = p[1]
+			s0 = funcnameFilename_hashobjs[filefunc0]
+			s1 = funcnameFilename_hashobjs[filefunc1]
+			score = ssdeep.compare(s0, s1)
+			# scores.append(score)
+
+			f0 = filefunc0.split(":")[1]
+			f1 = filefunc1.split(":")[1]
+			if (f0 == f1): # same func name
+				if score > THRESHOLD:
+					tpos += 1
+				else:
+					fneg += 1
+			else: # diff function name
+				if score > THRESHOLD:
+					fpos += 1
+				else:
+					tneg += 1
+
+
+		print(f"threshold:{THRESHOLD}\ntp:{tpos}\ntn:{tneg}\nfp:{fpos}\nfn:{fneg}")
+		print('''
+|ssdeep confusion matrix|match|no match|
+|------------------------|-----|---------|
+|\tsame funcname|{:>8}|{:>9}|
+|\tdiff funcname|{:>8}|{:>9}|
+		'''.format(tpos,fneg,fpos,tneg))
+
+	elif ALGO == "simhash" or ALGO == "simhash_ft":
+		if ALGO	 == "simhash":
+			tablename = 'funcsimhash'
+		elif ALGO == "simhash_ft":
+			tablename = 'funcsimhash_ft'
+
+		if THRESHOLD == None:
+			THRESHOLD = 10
+
+		tpos, fneg, fpos, tneg = 0,0,0,0
+		funcnameFilename_hashobjs = {}
+
+		rows = cur.execute("SELECT filename,fname,simhash FROM %s" % tablename)
+		for r in rows:
+			filename = r[0]
+			fname = r[1]
+			fname_filename = filename + ":" + fname
+			simhashStr = r[2]
+			# debug(f"{filename}:{fname}")
+			funcnameFilename_hashobjs[fname_filename] = simhashStr
+		# print(funcnameFilename_hashobjs)
+		for p in itertools.combinations(funcnameFilename_hashobjs.keys(), 2):
+			filefunc0 = p[0]
+			filefunc1 = p[1]
+			s0 = funcnameFilename_hashobjs[filefunc0]
+			s1 = funcnameFilename_hashobjs[filefunc1]
+			distance = SimHash(s0, 64, 16).distance(SimHash(s1, 64, 16))
+		
+			# print(f"{filefunc0},{filefunc1},{distance}")
+			f0 = filefunc0.split(":")[1]
+			f1 = filefunc1.split(":")[1]
+			if (f0 == f1): # same func name
+				if distance <= THRESHOLD: # small distance (<= t) is a match
+					tpos += 1
+				else:
+					fneg += 1
+			else: # diff function name
+				if distance <= THRESHOLD:
+					fpos += 1
+				else:
+					tneg += 1
+
+		print(f"threshold:{THRESHOLD}\ntp:{tpos}\ntn:{tneg}\nfp:{fpos}\nfn:{fneg}")
+		print('''
+|simhash confusion matrix|match|no match|
+|------------------------|-----|---------|
+|\tsame funcname|{:>8}|{:>9}|
+|\tdiff funcname|{:>8}|{:>9}|
+		'''.format(tpos,fneg,fpos,tneg))
+
+
+
 
 elog(f"done, elapsed {time.time() - start} seconds")
