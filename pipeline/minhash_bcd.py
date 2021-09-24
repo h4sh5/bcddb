@@ -74,11 +74,14 @@ dbpath = os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash'])
 con = sqlite3.connect(dbpath)
 cur = con.cursor()
 
+allfilefuncs = set()
+
 rows = cur.execute("SELECT filename,fname,hashvals FROM funcminhash WHERE numperms=?", (MINHASH_PERMS,))
 for r in rows:
 	filename = r[0]
 	fname = r[1]
 	fname_filename = filename + ":" + fname
+	allfilefuncs.add(fname_filename)
 	hashvalStr = r[2]
 	# hashvals = [ int(i) for i in hashvalStr.split(',') ]
 	for i in hashvalStr.split(','):
@@ -91,7 +94,7 @@ for r in rows:
 	# print(f"{filename}:{fname}")
 	
 elog(f"finished storing minhashdb, elapsed {time.time() - start}")
-
+elog(f"{len(allfilefuncs)} filename:funcname total")
 import code
 code.interact(local=locals())
 
