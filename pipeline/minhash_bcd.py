@@ -105,7 +105,7 @@ def lift(binaryPath):
 	retdecDecompilerPath = "retdec-decompiler.py"
 
 	# make temp directory and copy file over
-	tmpd = tempfile.mkdtemp(dir='./temp')
+	tmpd = tempfile.mkdtemp(prefix="tmp-"+os.path.basename(binaryPath), dir='./temp')
 	newbin = shutil.copy(binaryPath, tmpd)
 	# decompile
 	os.system(f"{retdecDecompilerPath} {newbin}")
@@ -130,15 +130,13 @@ def lookupBinary(path):
 
 	'''
 	# lift binary using retdec
-
-	lstart = time.time()
-
 	if path.endswith('.ll'):
 		llpath = path
 	else:
 		llpath = lift(path)
 	functions = extract_functions_retdecLL(llpath)
 	# os.remove(llpath)
+	lstart = time.time()
 
 	# schema: funcname:[(filefunc, match_score)]
 	matches = {}
@@ -178,7 +176,7 @@ def lookupBinary(path):
 				matches[fname].append((filefunc, score))
 	pprint.pprint(matches, indent=2)
 
-	elog("lookupBinary took", time.time() - lstart)
+	elog("lookupBinary took", (time.time() - lstart))
 
 
 
