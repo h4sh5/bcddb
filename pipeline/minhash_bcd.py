@@ -86,7 +86,7 @@ def extract_functions_retdecLL(filepath):
 		fname = fheader.split('(')[0].split(' ')[-1]
 
 		if res.get(fname) != None:
-			elog(f"duplicate function f{fname}")
+			print(f"duplicate function f{fname}")
 
 		res[fname] = funcCode
 
@@ -101,8 +101,9 @@ def extract_functions_retdecLL(filepath):
 	return res
 
 def lift(binaryPath):
-	# if this script from retdec is not in your path, use full path
-	retdecDecompilerPath = "retdec-decompiler.py"
+	# if this program from retdec is not in your path, use full path
+	# install from https://github.com/avast/retdec
+	retdecDecompilerPath = "retdec-decompiler"
 
 	# make temp directory and copy file over
 	tmpd = tempfile.mkdtemp(prefix="tmp-"+os.path.basename(binaryPath), dir='./temp')
@@ -115,9 +116,10 @@ def lift(binaryPath):
 	
 	llFile = f"{newbin}.ll"
 	if not os.path.exists(llFile):
-		elog("error - lifted LL file not found")
-		import code
-		code.interact(local=locals())
+		print("error - lifted LL file not found")
+		exit(2)
+		# import code
+		# code.interact(local=locals())
 		# exit(1)
 	return llFile
 
@@ -176,7 +178,7 @@ def lookupBinary(path):
 				matches[fname].append((filefunc, score))
 	pprint.pprint(matches, indent=2)
 
-	elog("lookupBinary took", (time.time() - lstart))
+	print("lookupBinary took", (time.time() - lstart))
 
 
 
@@ -212,7 +214,7 @@ for tup in opts:
 		THRESHOLD = float(a)
 
 if len(args) < 1:
-	elog('missing path to file.')
+	print('missing path to file.')
 	usage()
 	exit(1)
 targetpath = args[0]
@@ -241,11 +243,11 @@ for r in rows:
 
 	# print(f"{filename}:{fname}")
 	
-elog(f"finished storing minhashdb, elapsed {time.time() - start}")
-elog(f"{len(allfilefuncs)} filename:funcname total")
+print(f"finished storing minhashdb, elapsed {time.time() - start}")
+print(f"{len(allfilefuncs)} filename:funcname total")
 
 lookupBinary(targetpath)
-elog("elapsed:", time.time() - start)
+print("elapsed:", time.time() - start)
 #import code
 #code.interact(local=locals())
 
