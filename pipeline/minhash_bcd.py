@@ -211,6 +211,10 @@ for tup in opts:
 	elif o == '-t':
 		THRESHOLD = float(a)
 
+if len(args) < 1:
+	elog('missing path to file.')
+	usage()
+	exit(1)
 targetpath = args[0]
 
 # connect to db
