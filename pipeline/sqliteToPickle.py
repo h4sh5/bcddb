@@ -50,9 +50,9 @@ for r in rows:
 	for i in hashvalStr.split(','):
 		i = int(i)
 		if minhashdb.get(i) == None:
-			minhashdb[i] = []
+			minhashdb[i] = set()
 
-		minhashdb[i].append(fname_filename)
+		minhashdb[i].add(fname_filename)
 
 
 	# print(f"{filename}:{fname}")
