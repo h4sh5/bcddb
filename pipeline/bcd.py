@@ -34,7 +34,7 @@ def elog(*args, **kwargs):
 	print(*args,file=sys.stderr, **kwargs)
 
 def usage():
-	print("usage:\n%s <-i/-s> [options] <path to binary or .ll files>"%sys.argv[0] )
+	print("usage:\n%s <-i/-s> [options] <path to binary or .ll files> .."%sys.argv[0] )
 	# print("action can include extract, tokenize, minhash, ssdeep, ssdeep_ll, simhash, simhash_ft compare, compare_ll, confusion_matrix")
 	print('''
 		arguments:
@@ -291,27 +291,29 @@ if len(args) < 1:
 	print('missing path to file.')
 	usage()
 	exit(1)
-targetpath = args[0]
-
 
 allfilefuncs = set()
 
 
-
-with open(PICKLEFILE,'rb') as f:
-	MINHASHDB = pickle.load(f)
+if not os.path.exists(PICKLEFILE):
+	MINHASHDB = {}
+else:
+	with open(PICKLEFILE,'rb') as f:
+		MINHASHDB = pickle.load(f)
 
 print(f"finished loading db dictionary, elapsed {time.time() - start}")
 print(f"hashes in db: {len(MINHASHDB)}")
 
-if MODE == 'lookup':
-	lookupPath(targetpath)
-elif MODE == 'index':
-	indexPath(targetpath)
-	print(f"hashes in db after indexing: {len(MINHASHDB)}")
-	with open(PICKLEFILE,'wb') as f:
-		pickle.dump(MINHASHDB, f)
-	print(f"updated db at {PICKLEFILE}")
+for targetpath in args:
+
+	if MODE == 'lookup':
+		lookupPath(targetpath)
+	elif MODE == 'index':
+		indexPath(targetpath)
+		print(f"hashes in db after indexing: {len(MINHASHDB)}")
+		with open(PICKLEFILE,'wb') as f:
+			pickle.dump(MINHASHDB, f)
+		print(f"updated db at {PICKLEFILE}")
 
 print("elapsed:", time.time() - start)
 #import code
