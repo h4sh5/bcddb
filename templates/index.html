@@ -68,15 +68,10 @@
 		xhttp.open("GET", "/isdone", async);
 		xhttp.send();
 		if (xhttp.responseText.toLowerCase() == 'true') {
-			alert("analysis done!");
+			// alert("analysis done!");
 			clearInterval(timerId);
-			return true;
+			window.location = '/report';
 		}
-
-		// if not true, keep polling
-		// setInterval(pollForDone, 5000);
-
-		return false;
 	}
 
 	;( function ( document, window, index )

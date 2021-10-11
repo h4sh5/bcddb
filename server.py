@@ -28,6 +28,7 @@ MINHASHDB = {}
 
 CURRENTRESULTS = {}
 CURRENTDONE = False
+ANALYSIS_TIME = 0
 
 @app.route('/')
 def index():
@@ -37,8 +38,11 @@ def lookupPathAndSave(filepath):
     '''
     start new thread, save result in CURRENTRESULTS
     '''
-    global CURRENTDONE, CURRENTRESULTS
-    CURRENTRESULTS = lookupPath(filepath)
+    global CURRENTDONE, CURRENTRESULTS, ANALYSIS_TIME
+
+    analysisStart = time.time()
+    CURRENTRESULTS = lookupPath(filepath, db=MINHASHDB)
+    ANALYSIS_TIME = time.time() - analysisStart 
     CURRENTDONE = True
 
 
@@ -82,7 +86,13 @@ def isDone():
         return 'true'
     return 'false'
         
+@app.route('/report')
+def report():
+    '''
+    results page
+    '''
 
+    return render_template('report.html', analysis_time=ANALYSIS_TIME, results=CURRENTRESULTS)
 
 
 start = time.time()
