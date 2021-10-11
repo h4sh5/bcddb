@@ -34,3 +34,15 @@ and place `retdec-decompiler` on PATH
 	- to see binaries with symbols, use `nm <path to binary>` on linux/mac (use WSL if you are on windows)
 
 - index known functions, like crypto routines, to detect similar crypto routines (e.g. in ransomware)
+
+## web app
+
+The Work-In-Progress flask app works ONLY IN SINGLE THREADED MODE (because of global variables)
+
+If you are running it behind a reverse proxy (like nginx), do NOT use multiple workers. Just use one python and process and proxy pass the port (e.g. 5000)
+
+Make sure you have flask installed (already in requirements.txt).
+
+to run:
+
+`./server.py`
