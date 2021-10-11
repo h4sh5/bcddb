@@ -1,4 +1,9 @@
 datasketch~=1.5.3
+
+# for experimenting with other hash functions in run_experiments.py
 ssdeep
 # careful of installing this one, try https://github.com/skiloop/simhash/issues/1
 pysimhash
+
+# for web app
+flask
