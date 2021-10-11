@@ -159,7 +159,7 @@ def lift(binaryPath):
 	retdecDecompilerPath = "retdec-decompiler"
 
 	# make temp directory and copy file over
-	tmpd = tempfile.mkdtemp(prefix="tmp-"+os.path.basename(binaryPath)+'_', dir='./temp')
+	tmpd = tempfile.mkdtemp(prefix="tmp-"+os.path.basename(binaryPath)+'_', dir='./tmp')
 	newbin = shutil.copy(binaryPath, tmpd)
 	# decompile
 	os.system(f"{retdecDecompilerPath} {newbin}")
