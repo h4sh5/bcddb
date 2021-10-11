@@ -179,7 +179,7 @@ def lift(binaryPath):
 
 
 
-def lookupPath(path):
+def lookupPath(path, db=MINHASHDB):
 	'''
 	decompile a binary (or all binaries in a directory), calculate hashes for each function and then look it up in the database
 
@@ -224,9 +224,9 @@ def lookupPath(path):
 		# funcname: hash match
 		hashcounts = {}
 		for h in hashvals:
-			if MINHASHDB.get(h) == None: # no match
+			if db.get(h) == None: # no match
 				continue
-			for filefunc in MINHASHDB.get(h):
+			for filefunc in db.get(h):
 				if hashcounts.get(filefunc) == None:
 					hashcounts[filefunc] = 0
 				hashcounts[filefunc] += 1
