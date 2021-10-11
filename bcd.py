@@ -242,6 +242,7 @@ def lookupPath(path):
 
 	print("lookupPath took", (time.time() - lstart))
 
+	return matches
 
 
 

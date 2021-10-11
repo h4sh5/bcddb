@@ -55,7 +55,29 @@
 	With strict mode, you can not, for example, use undeclared variables.
 
 	**/
-	//'use strict'; // lol 
+	//'use strict'; // nah, lol
+
+	var timerId;
+
+	function pollForDone() {
+
+
+		// poll for /isdone and show results when done?
+		var xhttp = new XMLHttpRequest();
+		async = false;
+		xhttp.open("GET", "/isdone", async);
+		xhttp.send();
+		if (xhttp.responseText.toLowerCase() == 'true') {
+			alert("analysis done!");
+			clearInterval(timerId);
+			return true;
+		}
+
+		// if not true, keep polling
+		// setInterval(pollForDone, 5000);
+
+		return false;
+	}
 
 	;( function ( document, window, index )
 	{
@@ -173,14 +195,17 @@
 						{
 							alert( ajax.responseText );
 							var data = JSON.parse( ajax.responseText );
-							form.classList.add( data.success == true ? 'is-success' : 'is-error' );
+							// form.classList.add( data.success == true ? 'is-success' : 'is-error' );
+							// start polling for results
+							timerId = setInterval(pollForDone, 1000);
+
 							if( !data.success ) { 
 								errorMsg.textContent = data.error;
 							}
 
 							
 						}
-						else alert( 'Error. Please, contact the webmaster!' );
+						else alert( 'Error. Please, contact the admin!' );
 					};
 
 					ajax.onerror = function()
@@ -208,7 +233,7 @@
 					{
 						var data = JSON.parse( iframe.contentDocument.body.innerHTML );
 						form.classList.remove( 'is-uploading' )
-						form.classList.add( data.success == true ? 'is-success' : 'is-error' )
+						// form.classList.add( data.success == true ? 'is-success' : 'is-error' )
 						form.removeAttribute( 'target' );
 						if( !data.success ) errorMsg.textContent = data.error;
 						iframe.parentNode.removeChild( iframe );
