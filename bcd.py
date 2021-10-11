@@ -317,63 +317,62 @@ MINHASH_PERMS = 64
 
 MODE = 'lookup'
 
-# main 
+# main
+if __name__ == '__main__':
+	funcNames = None
 
+	opts, args = getopt.gnu_getopt(sys.argv[1:], 'hvisd:a:t:p:f:')
+	for tup in opts:
+		o,a = tup[0], tup[1]
+		if o == '-h':
+			usage()
+			exit(0)
+		elif o == '-i':
+			MODE = 'index'
+		elif o == '-s':
+			MODE = 'lookup'
+		elif o == '-f':
+			PICKLEFILE = a
+		elif o == '-p':
+			MINHASH_PERMS = int(a)
+		# elif o == '-a':
+		# 	ALGO = a
+		elif o == '-v':
+			VERBOSE = True
+		elif o == '-t':
+			THRESHOLD = float(a)
 
-funcNames = None
-
-opts, args = getopt.gnu_getopt(sys.argv[1:], 'hvisd:a:t:p:f:')
-for tup in opts:
-	o,a = tup[0], tup[1]
-	if o == '-h':
+	if len(args) < 1:
+		print('missing path to file.')
 		usage()
-		exit(0)
-	elif o == '-i':
-		MODE = 'index'
-	elif o == '-s':
-		MODE = 'lookup'
-	elif o == '-f':
-		PICKLEFILE = a
-	elif o == '-p':
-		MINHASH_PERMS = int(a)
-	# elif o == '-a':
-	# 	ALGO = a
-	elif o == '-v':
-		VERBOSE = True
-	elif o == '-t':
-		THRESHOLD = float(a)
+		exit(1)
 
-if len(args) < 1:
-	print('missing path to file.')
-	usage()
-	exit(1)
-
-allfilefuncs = set()
+	allfilefuncs = set()
 
 
-if not os.path.exists(PICKLEFILE):
-	MINHASHDB = {}
-else:
-	with open(PICKLEFILE,'rb') as f:
-		MINHASHDB = pickle.load(f)
-		print(f"finished loading db dictionary, elapsed {time.time() - start}")
-		print(f"hashes in db: {len(MINHASHDB)}")
+	if not os.path.exists(PICKLEFILE):
+		MINHASHDB = {}
+	else:
+		with open(PICKLEFILE,'rb') as f:
+			MINHASHDB = pickle.load(f)
+			print(f"finished loading db dictionary, elapsed {time.time() - start}")
+			print(f"hashes in db: {len(MINHASHDB)}")
 
-for targetpath in args:
+	for targetpath in args:
 
-	if MODE == 'lookup':
-		if not os.path.exists(PICKLEFILE):
-			print("no db pickle file specified, can't do lookup")
-			exit(1)
-		lookupPath(targetpath)
-	elif MODE == 'index':
-		indexPath(targetpath)
-		print(f"hashes in db after indexing: {len(MINHASHDB)}")
-		with open(PICKLEFILE,'wb') as f:
-			pickle.dump(MINHASHDB, f)
-		print(f"updated db at {PICKLEFILE}")
+		if MODE == 'lookup':
+			if not os.path.exists(PICKLEFILE):
+				print("no db pickle file specified, can't do lookup")
+				exit(1)
+			lookupPath(targetpath)
+		elif MODE == 'index':
+			indexPath(targetpath)
+			print(f"hashes in db after indexing: {len(MINHASHDB)}")
+			with open(PICKLEFILE,'wb') as f:
+				pickle.dump(MINHASHDB, f)
+			print(f"updated db at {PICKLEFILE}")
 
-print("elapsed:", time.time() - start)
-#import code
-#code.interact(local=locals())
+	print("elapsed:", time.time() - start)
+	#import code
+	#code.interact(local=locals())
 
