@@ -1,7 +1,4 @@
 datasketch~=1.5.3
 ssdeep
-# will choose one
-mmh3
-murmurhash
 # careful of installing this one, try https://github.com/skiloop/simhash/issues/1
 pysimhash

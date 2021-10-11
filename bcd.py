@@ -15,7 +15,6 @@ import pickle
 from datasketch import MinHash, LeanMinHash
 import itertools
 
-from run import tokenize
 
 start = time.time()
 
@@ -47,6 +46,63 @@ def usage():
 
 		''')
 
+def tokenize(instruction):
+	'''
+	takes an llvm IR instruction and returns a list of string tokens
+	'''
+	tokens = instruction.split()
+	result_tokens = []
+
+	intsizes = ['i4', 'i8', 'i16', 'i32', 'i64',
+		'u4', 'u8', 'u16', 'u32', 'u64']
+
+	# when a token starts with a shoterner, truncate it to the shortener.
+	shorteners = ['%stack_var', '%dec_label', '%global', '@global']
+
+	for i in range(len(tokens)):
+		# run replacement rules
+		t = tokens[i]
+		replaced = False
+
+		
+		for s in shorteners:
+			if t.startswith(s):
+				debug(f'replacing {t} with {s}')
+				result_tokens.append(s)
+				replaced = True
+				break
+		if replaced:
+			continue
+
+		elif t[:3] in intsizes:
+			debug(f'dropping {t}')
+			continue
+
+
+		elif t.startswith('%') and not ("(" in t):
+			# generic variable reference
+			newt = '%r'
+			debug(f'replacing {t} with {newt}')
+			result_tokens.append(newt)
+
+		elif t == '!insn.addr': # stop processing
+			break
+
+		
+		else:
+			newt = t
+			for it in intsizes:
+				newt = newt.replace(it, '')
+			# newt = t.replace()
+			result_tokens.append(newt)
+
+
+		# can use lookahead to determine nature of token
+	if result_tokens != []:
+		#result_tokens.append(";")
+		debug(result_tokens)
+		return result_tokens # signify end of instruction
+	return None
 
 def extract_functions_retdecLL(filepath):
 	'''
@@ -300,13 +356,15 @@ if not os.path.exists(PICKLEFILE):
 else:
 	with open(PICKLEFILE,'rb') as f:
 		MINHASHDB = pickle.load(f)
-
-print(f"finished loading db dictionary, elapsed {time.time() - start}")
-print(f"hashes in db: {len(MINHASHDB)}")
+		print(f"finished loading db dictionary, elapsed {time.time() - start}")
+		print(f"hashes in db: {len(MINHASHDB)}")
 
 for targetpath in args:
 
 	if MODE == 'lookup':
+		if not os.path.exists(PICKLEFILE):
+			print("no db pickle file specified, can't do lookup")
+			exit(1)
 		lookupPath(targetpath)
 	elif MODE == 'index':
 		indexPath(targetpath)

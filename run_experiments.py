@@ -10,8 +10,6 @@ import time
 from datasketch import MinHash, LeanMinHash
 import itertools
 import ssdeep
-# import murmurhash
-# import mmh3
 # simhash pure python is SLOW
 # from simhash import Simhash
 from pysimhash import SimHash
@@ -221,10 +219,6 @@ def tokenize(instruction):
 	return None
 
 
-def mmh(d):
-    return murmurhash.hash(d)
-
-
 ## for simhash
 def get_features(s):
 	# width adjustable
@@ -370,7 +364,6 @@ if __name__ == "__main__":
 			functokens = row[2]
 
 			# can also use LeanMinHash to save memory/space!
-			 #, hashfunc=mmh3.hash)
 			m = MinHash(num_perm=MINHASH_PERMS)
 
 			for t in functokens.split():
