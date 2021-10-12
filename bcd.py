@@ -253,7 +253,6 @@ def lookupPath(path, db=MINHASHDB):
 	for function_key in matches:
 		matches[function_key].sort(key=getTuple1, reverse=True)
 
-	print(json.dumps(matches, indent=2))
 	elog("lookupPath took", (time.time() - lstart))
 
 	return matches
@@ -379,7 +378,8 @@ if __name__ == '__main__':
 			if not os.path.exists(PICKLEFILE):
 				elog("no db pickle file specified, can't do lookup")
 				exit(1)
-			lookupPath(targetpath, MINHASHDB)
+			matches = lookupPath(targetpath, MINHASHDB)
+			print(json.dumps(matches, indent=2))
 		elif MODE == 'index':
 			indexPath(targetpath, MINHASHDB)
 			elog(f"hashes in db after indexing: {len(MINHASHDB)}")
