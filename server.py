@@ -15,6 +15,9 @@ app = Flask(__name__,
             static_url_path='',
             static_folder='templates',
             template_folder='templates')
+
+# sorry for all the global variables and screaming
+
 UPLOADPATH = 'uploads'
 
 MINHASH_PERMS = 64
@@ -26,6 +29,7 @@ PICKLEFILE = 'db_dict.pkl'
 MINHASH_PERMS = 64
 MINHASHDB = {}
 
+CURRENTFILEINFO = {}
 CURRENTRESULTS = {}
 CURRENTDONE = False
 ANALYSIS_TIME = 0
@@ -38,12 +42,17 @@ def lookupPathAndSave(filepath):
     '''
     start new thread, save result in CURRENTRESULTS
     '''
-    global CURRENTDONE, CURRENTRESULTS, ANALYSIS_TIME
+    global CURRENTDONE, CURRENTRESULTS, ANALYSIS_TIME,CURRENTFILEINFO
 
     analysisStart = time.time()
     CURRENTRESULTS = lookupPath(filepath, db=MINHASHDB)
     ANALYSIS_TIME = time.time() - analysisStart 
+    CURRENTFILEINFO['filename'] = os.path.basename(filepath)
+    with open(filepath, 'rb') as f:
+        CURRENTFILEINFO['md5'] = hashlib.md5(f.read()).hexdigest()
     CURRENTDONE = True
+    os.remove(filepath)
+
 
 def indexPathAndSave(filepath):
     global MINHASHDB
@@ -51,6 +60,7 @@ def indexPathAndSave(filepath):
     with open(PICKLEFILE, 'wb') as f:
         pickle.dump(MINHASHDB, f)
     print(f'db updated in {PICKLEFILE}')
+    os.remove(filepath)
 
 @app.route('/upload/<action>', methods = ['GET', 'POST'])
 def upload_file(action):
@@ -71,11 +81,6 @@ def upload_file(action):
                 print('secure filename: ', secure_filename(f.filename))
                 safepath = os.path.join(UPLOADPATH, secure_filename(f.filename))
                 f.save(safepath)
-                # threadname = 'lookup-'+safepath 
-                # need to return this somehow - maybe just let it load synchronously (want to avoid global vars?)
-                # and just have a progress wheel in the front end
-                # matches = lookupPath(safepath)
-                # results[f.filename] = matches
                 CURRENTDONE = False
                 if action == 'search':
                     print('searching...')
@@ -97,22 +102,45 @@ def isDone():
         return 'true'
     return 'false'
 
-def getTuple1(t):
-    ''''
-    return 1st (0 indexed) element of a tuple
+
+def averageScore(resultTuples):
     '''
-    return t[1]
+    utility function to pass to flask;
+    calculate the average score in a list of result tuples 
+    e.g.
+    [ ('filename:funcname': 0.5), ('filename:funcname1': 0.8), ..]
+    '''
+    total = 0
+    counter = 0
+    for name,score in resultTuples:
+        total += score
+        counter += 1
+
+    return float(total / counter)
+
+
+def maxScore(resultTuples):
+    '''
+    same as averageScore, but max
+    '''
+    max_score = 0
+    for name,score in resultTuples:
+        if max_score < score:
+            max_score = score
+
+    return max_score
+
 
 @app.route('/report')
 def report():
     '''
     results page
     '''
+    # if CURRENTRESULTS
     results = CURRENTRESULTS
-    # rank them based on score
-    for function_key in results:
-        results[function_key].sort(key=getTuple1, reverse=True)
-    return render_template('report.html.j2', analysis_time=ANALYSIS_TIME, results=CURRENTRESULTS)
+    
+    return render_template('report.html.j2', analysis_time=ANALYSIS_TIME, results=CURRENTRESULTS, fileinfo=CURRENTFILEINFO, 
+        averageScore=averageScore, maxScore=maxScore) # also utility functions
 
 
 start = time.time()

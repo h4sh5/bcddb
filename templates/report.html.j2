@@ -1,15 +1,42 @@
-analysis time: {{analysis_time}}
-<br>
-results: 
-<br>
-{% for key in results %}
-{{key}}:
-<ul>
-		{% for match,score in results[key] %}
-			<li>{{match}} similarity: {{score}}</li>
-		{%endfor%}
-</ul>
+<html>
 
-{% endfor %}
 
-{# {{results}} #}
+<style>
+
+
+</style>
+
+<body>
+
+	analysis time: {{analysis_time}}
+	<br>
+	file name: {{fileinfo['filename']}} 
+	<br>
+	md5: {{fileinfo['md5']}} 
+	<br>
+	
+	<hr>
+	<h2>Matches</h2>
+
+	{% for key in results %}
+	<b>{{key}}</b>
+	<br>
+	{{results[key]|length}} total matches
+	<br>
+	average score: {{averageScore(results[key])}}
+	<br>
+	max score: {{maxScore(results[key])}}
+	<br>
+
+	<ul class=matches name="{{key}}">
+			{% for match,score in results[key] %}
+				<li>{{match}} similarity: {{score}}</li>
+			{%endfor%}
+	</ul>
+
+	{% endfor %}
+
+	{# {{results}} #}
+</body>
+
+</html>
