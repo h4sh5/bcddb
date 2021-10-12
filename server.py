@@ -32,7 +32,7 @@ ANALYSIS_TIME = 0
 
 @app.route('/')
 def index():
-   return render_template('index.html', hashcount=len(MINHASHDB))
+   return render_template('index.html.j2', hashcount=len(MINHASHDB))
     
 def lookupPathAndSave(filepath):
     '''
@@ -45,10 +45,15 @@ def lookupPathAndSave(filepath):
     ANALYSIS_TIME = time.time() - analysisStart 
     CURRENTDONE = True
 
+def indexPathAndSave(filepath):
+    global MINHASHDB
+    indexPath(filepath, db=MINHASHDB)
+    with open(PICKLEFILE, 'wb') as f:
+        pickle.dump(MINHASHDB, f)
+    print(f'db updated in {PICKLEFILE}')
 
-
-@app.route('/upload', methods = ['GET', 'POST'])
-def upload_file():
+@app.route('/upload/<action>', methods = ['GET', 'POST'])
+def upload_file(action):
     global CURRENTDONE
     
     if request.method == 'POST':
@@ -72,7 +77,13 @@ def upload_file():
                 # matches = lookupPath(safepath)
                 # results[f.filename] = matches
                 CURRENTDONE = False
-                _thread.start_new_thread(lookupPathAndSave, (safepath,))
+                if action == 'search':
+                    print('searching...')
+                    _thread.start_new_thread(lookupPathAndSave, (safepath,))
+                elif action == 'index':
+                    print('indexing...')
+                    _thread.start_new_thread(indexPathAndSave, (safepath,))
+
 
 
         return jsonify({'message':'upload complete, processing file(s)...', 'success':1})
@@ -85,14 +96,23 @@ def isDone():
     if CURRENTDONE == True:
         return 'true'
     return 'false'
-        
+
+def getTuple1(t):
+    ''''
+    return 1st (0 indexed) element of a tuple
+    '''
+    return t[1]
+
 @app.route('/report')
 def report():
     '''
     results page
     '''
-
-    return render_template('report.html', analysis_time=ANALYSIS_TIME, results=CURRENTRESULTS)
+    results = CURRENTRESULTS
+    # rank them based on score
+    for function_key in results:
+        results[function_key].sort(key=getTuple1, reverse=True)
+    return render_template('report.html.j2', analysis_time=ANALYSIS_TIME, results=CURRENTRESULTS)
 
 
 start = time.time()

@@ -1,0 +1,15 @@
+analysis time: {{analysis_time}}
+<br>
+results: 
+<br>
+{% for key in results %}
+{{key}}:
+<ul>
+		{% for match,score in results[key] %}
+			<li>{{match}} similarity: {{score}}</li>
+		{%endfor%}
+</ul>
+
+{% endfor %}
+
+{# {{results}} #}

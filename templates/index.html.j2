@@ -30,8 +30,8 @@
 		<input type="file" name="files[]" id="file" class="box__file" data-multiple-caption="{count} files selected">
 		<br>
 		<label for="file"><strong>Choose a file</strong><span class="box__dragndrop"> or drag it here</span>.</label>
-		<button type="submit" class="box__button" name=upload-index>Upload and search</button>
-		<button type="submit" class="box__button" name=upload-search>Upload and index</button>
+		<button type="submit" class="box__button" name=search>Upload and search</button>
+		<button type="submit" class="box__button" name=index>Upload and index</button>
 		</div>
 		<div class="box__uploading">Uploading…</div>
 		<div class="box__success">Done! <a href="/" class="box__restart" role="button">Upload more?</a></div>
@@ -159,6 +159,8 @@
 			// if the form was submitted
 			form.addEventListener( 'submit', function submitForm( e )
 			{
+				var submitterName = e.submitter.name; // for determining 'search' or 'index' etc. 
+				// console.log('submit event: ', e);
 				// preventing the duplicate submissions if the current one is in progress
 				if( form.classList.contains( 'is-uploading' ) ) return false;
 
@@ -181,7 +183,7 @@
 
 					// ajax request
 					var ajax = new XMLHttpRequest();
-					ajax.open( form.getAttribute( 'method' ), form.getAttribute( 'action' ), true );
+					ajax.open( form.getAttribute( 'method' ), form.getAttribute( 'action' ) + '/' + submitterName, true );
 
 					ajax.onload = function()
 					{

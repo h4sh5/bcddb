@@ -246,7 +246,7 @@ def lookupPath(path, db=MINHASHDB):
 
 
 
-def indexPath(path):
+def indexPath(path, db=MINHASHDB):
 	'''
 	decompile a binary (or all binaries in a directory), calculate hashes for each function and then store it in the database
 	'''
@@ -292,13 +292,13 @@ def indexPath(path):
 		hashcounts = {}
 		filename_funcname = os.path.basename(path) + ":" + fname
 		for h in hashvals:
-			if MINHASHDB.get(h) == None:
-				MINHASHDB[h] = set()
-			# if filename_funcname not in MINHASHDB[h]
-			elif type(MINHASHDB.get(h)) == list:
+			if db.get(h) == None:
+				db[h] = set()
+			# if filename_funcname not in db[h]
+			elif type(db.get(h)) == list:
 				# convert entry to set if its a list (old version)
-				MINHASHDB[h] = set(MINHASHDB[h])
-			MINHASHDB[h].add(filename_funcname)
+				db[h] = set(db[h])
+			db[h].add(filename_funcname)
 
 
 	print("indexPath took", (time.time() - lstart))
