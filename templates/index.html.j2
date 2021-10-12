@@ -181,37 +181,49 @@
 						});
 					}
 
-					// ajax request
-					var ajax = new XMLHttpRequest();
-					ajax.open( form.getAttribute( 'method' ), form.getAttribute( 'action' ) + '/' + submitterName, true );
+					console.log(ajaxData);
 
-					ajax.onload = function()
-					{
-						form.classList.remove( 'is-uploading' );
-						if( ajax.status >= 200 && ajax.status < 400 )
+					if (Array.from(ajaxData.entries())[0][1].size == 0 && Array.from(ajaxData.entries()).length == 1) {
+						// file is empty
+						alert('no files / file is emtpy!');
+						window.location = '/';
+					} else {
+						// ajax request
+						var ajax = new XMLHttpRequest();
+						ajax.open( form.getAttribute( 'method' ), form.getAttribute( 'action' ) + '/' + submitterName, true );
+
+						ajax.onload = function()
 						{
-							alert( ajax.responseText );
-							var data = JSON.parse( ajax.responseText );
-							// form.classList.add( data.success == true ? 'is-success' : 'is-error' );
-							// start polling for results
-							timerId = setInterval(pollForDone, 1000);
+							form.classList.remove( 'is-uploading' );
+							if( ajax.status >= 200 && ajax.status < 400 )
+							{
+								alert( ajax.responseText );
+								var data = JSON.parse( ajax.responseText );
+								// form.classList.add( data.success == true ? 'is-success' : 'is-error' );
+								// start polling for results
+								timerId = setInterval(pollForDone, 1000);
 
-							if( !data.success ) { 
-								errorMsg.textContent = data.error;
+								if( !data.success ) { 
+									errorMsg.textContent = data.error;
+								}
+
+								
 							}
+							else alert( 'Error. Please, contact the admin!' );
+						};
 
-							
-						}
-						else alert( 'Error. Please, contact the admin!' );
-					};
+						ajax.onerror = function()
+						{
+							form.classList.remove( 'is-uploading' );
+							alert( 'Error. Please, try again!' );
+						};
 
-					ajax.onerror = function()
-					{
-						form.classList.remove( 'is-uploading' );
-						alert( 'Error. Please, try again!' );
-					};
+						
+						ajax.send( ajaxData );
+					}
 
-					ajax.send( ajaxData );
+
+					
 				}
 				else // fallback Ajax solution upload for older browsers
 				{
