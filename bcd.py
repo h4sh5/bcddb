@@ -8,7 +8,7 @@ import shutil
 import time
 import tempfile
 import subprocess
-
+import json
 import pprint
 
 import pickle
@@ -33,9 +33,9 @@ def elog(*args, **kwargs):
 	print(*args,file=sys.stderr, **kwargs)
 
 def usage():
-	print("usage:\n%s <-i/-s> [options] <path to binary or .ll files> .."%sys.argv[0] )
+	elog("usage:\n%s <-i/-s> [options] <path to binary or .ll files> .."%sys.argv[0] )
 	# print("action can include extract, tokenize, minhash, ssdeep, ssdeep_ll, simhash, simhash_ft compare, compare_ll, confusion_matrix")
-	print('''
+	elog('''
 		arguments:
 		-s		: search mode, lookup similar functions
 		-i		: index mode, indexes binaries/ll files into db pickle
@@ -139,7 +139,7 @@ def extract_functions_retdecLL(filepath):
 		fname = fheader.split('(')[0].split(' ')[-1]
 
 		if res.get(fname) != None:
-			print(f"duplicate function f{fname}")
+			elog(f"duplicate function f{fname}")
 
 		res[fname] = funcCode
 
@@ -162,14 +162,17 @@ def lift(binaryPath):
 	tmpd = tempfile.mkdtemp(prefix="tmp-"+os.path.basename(binaryPath)+'_', dir='./tmp')
 	newbin = shutil.copy(binaryPath, tmpd)
 	# decompile
-	os.system(f"{retdecDecompilerPath} {newbin}")
+	if VERBOSE:
+		os.system(f"{retdecDecompilerPath} {newbin}")
+	else:
+		os.system(f"{retdecDecompilerPath} {newbin} >/dev/null")
 
 	# remove copied bin
 	os.remove(newbin)
 	
 	llFile = f"{newbin}.ll"
 	if not os.path.exists(llFile):
-		print("error - lifted LL file not found")
+		elog("error - lifted LL file not found")
 		exit(2)
 		# import code
 		# code.interact(local=locals())
@@ -177,6 +180,12 @@ def lift(binaryPath):
 	return llFile
 
 
+
+def getTuple1(t):
+    ''''
+    return 1st (0 indexed) element of a tuple
+    '''
+    return t[1]
 
 
 def lookupPath(path, db=MINHASHDB):
@@ -238,9 +247,14 @@ def lookupPath(path, db=MINHASHDB):
 				if matches.get(fname) == None:
 					matches[fname] = []
 				matches[fname].append((filefunc, score))
-	pprint.pprint(matches, indent=2)
+	# pprint.pprint(matches, indent=2)
 
-	print("lookupPath took", (time.time() - lstart))
+	# rank results based on score
+	for function_key in matches:
+		matches[function_key].sort(key=getTuple1, reverse=True)
+
+	print(json.dumps(matches, indent=2))
+	elog("lookupPath took", (time.time() - lstart))
 
 	return matches
 
@@ -356,24 +370,24 @@ if __name__ == '__main__':
 	else:
 		with open(PICKLEFILE,'rb') as f:
 			MINHASHDB = pickle.load(f)
-			print(f"finished loading db dictionary, elapsed {time.time() - start}")
-			print(f"hashes in db: {len(MINHASHDB)}")
+			elog(f"finished loading db dictionary, elapsed {time.time() - start}")
+			elog(f"hashes in db: {len(MINHASHDB)}")
 
 	for targetpath in args:
 
 		if MODE == 'lookup':
 			if not os.path.exists(PICKLEFILE):
-				print("no db pickle file specified, can't do lookup")
+				elog("no db pickle file specified, can't do lookup")
 				exit(1)
-			lookupPath(targetpath)
+			lookupPath(targetpath, MINHASHDB)
 		elif MODE == 'index':
-			indexPath(targetpath)
-			print(f"hashes in db after indexing: {len(MINHASHDB)}")
+			indexPath(targetpath, MINHASHDB)
+			elog(f"hashes in db after indexing: {len(MINHASHDB)}")
 			with open(PICKLEFILE,'wb') as f:
 				pickle.dump(MINHASHDB, f)
-			print(f"updated db at {PICKLEFILE}")
+			elog(f"updated db at {PICKLEFILE}")
 
-	print("elapsed:", time.time() - start)
+	elog("elapsed:", time.time() - start)
 	#import code
 	#code.interact(local=locals())
 
