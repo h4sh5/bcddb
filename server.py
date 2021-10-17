@@ -55,11 +55,12 @@ def lookupPathAndSave(filepath):
 
 
 def indexPathAndSave(filepath):
-    global MINHASHDB
+    global MINHASHDB, CURRENTDONE
     indexPath(filepath, db=MINHASHDB)
     with open(PICKLEFILE, 'wb') as f:
         pickle.dump(MINHASHDB, f)
     print(f'db updated in {PICKLEFILE}')
+    CURRENTDONE = True
     os.remove(filepath)
 
 @app.route('/upload/<action>', methods = ['GET', 'POST'])
