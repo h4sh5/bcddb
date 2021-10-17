@@ -226,6 +226,28 @@ def get_features(s):
     return [s[i:i + width] for i in range(max(len(s) - width + 1, 1))]
 
 
+def print_confusion_matrix(name, tpos, fpos, tneg, fneg):
+	tpr = tpos/(tpos+fneg) # true pos rate
+	fnr = fneg/(tpos+fneg) # false neg rate
+	fpr = fpos/(fpos+tneg)
+	tnr = tneg/(fpos+tneg) 
+	# using rates instead of numbers because of class imbalance
+	accuracy = (tpr + tnr) / (tpr + tnr + fpr + fnr)
+	# real numbers for prec and rec
+	#precision = tpos / (tpos + fpos)
+	#recall = tpos / (fpos + fneg)
+	print('''
+|{} confusion matrix|  match| no match|
+|------------------------|-------------|---------|
+|           same funcname|{:>8.3f} ({})|{:>9.3f} ({})|
+|           diff funcname|{:>8.3f} ({})|{:>9.3f} ({:})|
+			'''.format(name,
+				tpr,tpos,
+				fnr,fneg,
+				fpr,fpos,
+				tnr,tneg))
+	print('accuracy:', accuracy)
+
 
 
 ############################ main
@@ -860,20 +882,21 @@ if __name__ == "__main__":
 
 
 			print(f"threshold:{THRESHOLD}\ntp:{tpos}\ntn:{tneg}\nfp:{fpos}\nfn:{fneg}")
-			print('''
-|minhash data matrix|match|no match|
-|------------------------|-----|---------|
-|\tsame funcname|{:>8}|{:>9}|
-|\tdiff funcname|{:>8}|{:>9}|
-			'''.format(tpos,fneg,fpos,tneg))
+			print_confusion_matrix('minhash', tpos,fpos,tneg,fneg)
+# 			print('''
+# |minhash data matrix|match|no match|
+# |------------------------|-----|---------|
+# |\tsame funcname|{:>8}|{:>9}|
+# |\tdiff funcname|{:>8}|{:>9}|
+# 			'''.format(tpos,fneg,fpos,tneg))
 
-			print('''
-|minhash confusion matrix|match|no match|
-|------------------------|-----|---------|
-|\tsame funcname|{:>8.3f}|{:>9.3f}|
-|\tdiff funcname|{:>8.3f}|{:>9.3f}|
-			'''.format(tpos/(tpos+fneg),fneg/(tpos+fneg),fpos/(fpos+tneg),tneg/(fpos+tneg)))
-			# print("minhash confusion matrix")
+# 			print('''
+# |minhash confusion matrix|match|no match|
+# |------------------------|-----|---------|
+# |\tsame funcname|{:>8.3f}|{:>9.3f}|
+# |\tdiff funcname|{:>8.3f}|{:>9.3f}|
+# 			'''.format(tpos/(tpos+fneg),fneg/(tpos+fneg),fpos/(fpos+tneg),tneg/(fpos+tneg)))
+# 			# print("minhash confusion matrix")
 
 
 		elif ALGO == "ssdeep":
@@ -920,12 +943,7 @@ if __name__ == "__main__":
 
 
 			print(f"threshold:{THRESHOLD}\ntp:{tpos}\ntn:{tneg}\nfp:{fpos}\nfn:{fneg}")
-			print('''
-	|ssdeep confusion matrix|match|no match|
-	|------------------------|-----|---------|
-	|\tsame funcname|{:>8}|{:>9}|
-	|\tdiff funcname|{:>8}|{:>9}|
-			'''.format(tpos,fneg,fpos,tneg))
+			print_confusion_matrix('ssdeep', tpos, fpos, tneg, fneg)
 
 		elif ALGO == "simhash" or ALGO == "simhash_ft":
 			if ALGO	 == "simhash":
@@ -970,12 +988,8 @@ if __name__ == "__main__":
 						tneg += 1
 
 			print(f"threshold:{THRESHOLD}\ntp:{tpos}\ntn:{tneg}\nfp:{fpos}\nfn:{fneg}")
-			print('''
-	|simhash confusion matrix|match|no match|
-	|------------------------|-----|---------|
-	|\tsame funcname|{:>8}|{:>9}|
-	|\tdiff funcname|{:>8}|{:>9}|
-			'''.format(tpos,fneg,fpos,tneg))
+			print_confusion_matrix('simhash', tpos, fpos, tneg, fneg)
+
 
 		if ALGO == "tlsh":
 
@@ -1023,35 +1037,7 @@ if __name__ == "__main__":
 
 			# TODO centralize the stats printing at some point I promise
 			print(f"threshold:{THRESHOLD}\ntp:{tpos}\ntn:{tneg}\nfp:{fpos}\nfn:{fneg}")
-			print('''
-|tlsh data matrix|match|no match|
-|------------------------|-----|---------|
-|\tsame funcname|{:>8}|{:>9}|
-|\tdiff funcname|{:>8}|{:>9}|
-			'''.format(tpos,fneg,fpos,tneg))
-
-			tpr = tpos/(tpos+fneg) # true pos rate
-			fnr = fneg/(tpos+fneg) # false neg rate
-			fpr = fpos/(fpos+tneg)
-			tnr = tneg/(fpos+tneg) 
-			# using rates instead of numbers because of class imbalance
-			accuracy = (tpr + tnr) / (tpr + tnr + fpr + fnr)
-			# real numbers for prec and rec
-			#precision = tpos / (tpos + fpos)
-			#recall = tpos / (fpos + fneg)
-
-			print('''
-|tlsh confusion matrix|match|no match|
-|------------------------|-----|---------|
-|\tsame funcname|{:>8.3f}|{:>9.3f}|
-|\tdiff funcname|{:>8.3f}|{:>9.3f}|
-			'''.format(tpr, fnr, fpr, tnr))
-			# print("minhash confusion matrix")
-			print('accuracy:', accuracy)
-
-			# print('precision:',  precision)
-			# print('recall:', recall)
+			print_confusion_matrix('tlsh', tpos, fpos, tneg, fneg)
 
 
-
-	elog(f"done, elapsed {time.time() - start} seconds")
+	print(f"done, elapsed {time.time() - start} seconds")
