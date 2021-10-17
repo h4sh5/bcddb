@@ -10,8 +10,6 @@ import time
 from datasketch import MinHash, LeanMinHash
 import itertools
 import ssdeep
-# simhash pure python is SLOW
-# from simhash import Simhash
 from pysimhash import SimHash
 
 
@@ -218,7 +216,6 @@ def tokenize(instruction):
 		return result_tokens # signify end of instruction
 	return None
 
-
 ## for simhash
 def get_features(s):
 	# width adjustable
@@ -364,6 +361,7 @@ if __name__ == "__main__":
 			functokens = row[2]
 
 			# can also use LeanMinHash to save memory/space!
+			 #, hashfunc=mmh3.hash)
 			m = MinHash(num_perm=MINHASH_PERMS)
 
 			for t in functokens.split():
@@ -765,11 +763,18 @@ if __name__ == "__main__":
 
 			print(f"threshold:{THRESHOLD}\ntp:{tpos}\ntn:{tneg}\nfp:{fpos}\nfn:{fneg}")
 			print('''
-	|minhash confusion matrix|match|no match|
-	|------------------------|-----|---------|
-	|\tsame funcname|{:>8}|{:>9}|
-	|\tdiff funcname|{:>8}|{:>9}|
+|minhash data matrix|match|no match|
+|------------------------|-----|---------|
+|\tsame funcname|{:>8}|{:>9}|
+|\tdiff funcname|{:>8}|{:>9}|
 			'''.format(tpos,fneg,fpos,tneg))
+
+			print('''
+|minhash confusion matrix|match|no match|
+|------------------------|-----|---------|
+|\tsame funcname|{:>8.3f}|{:>9.3f}|
+|\tdiff funcname|{:>8.3f}|{:>9.3f}|
+			'''.format(tpos/(tpos+fneg),fneg/(tpos+fneg),fpos/(fpos+tneg),tneg/(fpos+tneg)))
 			# print("minhash confusion matrix")
 
 
