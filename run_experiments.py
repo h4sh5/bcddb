@@ -12,12 +12,13 @@ import itertools
 import ssdeep
 from pysimhash import SimHash
 
+import tlsh
 
 import statistics
 
 
 VERBOSE = False # can be turned off via flags
-ALGO = "ssdeep"
+ALGO = "minhash"
 THRESHOLD = None
 
 def debug(*args, **kwargs):
@@ -32,7 +33,7 @@ def elog(*args, **kwargs):
 
 def usage():
 	print("usage:\n%s <action>"%sys.argv[0] )
-	print("action can include extract, tokenize, minhash, ssdeep, ssdeep_ll, simhash, simhash_ft compare, compare_ll, confusion_matrix")
+	print("action can include extract, tokenize, minhash, ssdeep, ssdeep_ll, simhash, tlsh, compare, compare_ll, confusion_matrix")
 	print('''
 		arguments:
 		-f funcion_name		: function name(s) to evaluate during compare (comma separated)
@@ -578,6 +579,54 @@ if __name__ == "__main__":
 			# code.interact(local=locals())
 		elog(f"calculated {fnhashCount} hashes, skipped {fnSkipCount}")
 
+	if "tlsh" == action:
+		con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
+		cur = con.cursor()
+		cur.execute('''
+			CREATE TABLE IF NOT EXISTS functlsh (filename VARCHAR, fname VARCHAR, 
+							tlsh VARCHAR, PRIMARY KEY (filename, fname))''')
+		con.commit()
+
+		fnhashCount = 0
+		fnSkipCount = 0
+
+		tokencon =  sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract']))
+		tokencur = 	tokencon.cursor()
+
+		rows = tokencur.execute("SELECT filename, fname, tokens from token")
+		for row in rows:
+			filename = row[0]
+			fname = row[1]
+			functokens = row[2]
+
+			
+			if len(functokens) <= 50: # tlsh has to perform over data of 50 bytes
+				fnSkipCount += 1
+				continue
+			if type(functokens) == str:
+				functokens = functokens.encode()
+			tlsh_hash = tlsh.hash(functokens)
+		
+			# debug('hash:', hashvals)
+			try:
+				cur.execute("INSERT INTO functlsh (filename,fname, tlsh) values(?,?,?)",
+					(
+						filename, 
+						fname, 
+						tlsh_hash
+					)
+				)
+				con.commit()
+				fnhashCount += 1
+			
+			except sqlite3.IntegrityError:
+				fnSkipCount += 1
+				pass
+			
+			# import code
+			# code.interact(local=locals())
+		elog(f"calculated {fnhashCount} hashes, skipped {fnSkipCount}")
+
 
 
 
@@ -707,6 +756,55 @@ if __name__ == "__main__":
 				elog(f"max simhash distance: {max(distances)}")
 				elog(f"median simhash distance: {statistics.median(distances)}")
 				elog(f"mean simhash distance: {statistics.mean(distances)}")
+
+		elif ALGO == "tlsh":
+			'''
+			https://documents.trendmicro.com/assets/wp/wp-locality-sensitive-hash.pdf
+			a distance score of 0 represents that 
+			the files are identical (or nearly identical) and scores above that represent greater distance between the 
+			documents. A higher score should represent that there are more differences between the documents
+
+			The TLSH scheme has very low false positive detection capabilities at thresholds <= 30 and very high 
+			detection rates for thresholds closer to 100
+			'''
+			tablename = 'functlsh'
+			if THRESHOLD == None:
+				THRESHOLD = 100 # <= 100
+			funcnameFilename_hashobjs = {}
+			distances = []
+
+			# print CSV header
+			print('filefunc0,filefunc1,difference_tlsh')
+
+			for funcName in funcNames.split(','):
+				rows = cur.execute("SELECT filename,fname,tlsh FROM %s WHERE fname LIKE ?" % tablename, (funcName,))
+				for r in rows:
+					filename = r[0]
+					fname = r[1]
+					fname_filename = filename + ":" + fname
+					tlsh_hash = r[2]
+					# debug(f"{filename}:{fname}")
+					funcnameFilename_hashobjs[fname_filename] = tlsh_hash
+			# print(funcnameFilename_hashobjs)
+			for p in itertools.combinations(funcnameFilename_hashobjs.keys(), 2):
+				filefunc0 = p[0]
+				filefunc1 = p[1]
+
+				t0 = funcnameFilename_hashobjs[filefunc0]
+				t1 = funcnameFilename_hashobjs[filefunc1]
+				# using diffxlen instead of diff to add in containment of a repeating patterns
+				distance = tlsh.diffxlen(t0,t1)
+
+				distances.append(distance)
+
+			
+				print(f"{filefunc0},{filefunc1},{distance}")
+
+			if len(distances) > 0:
+				elog(f"min : {min(distances)}")
+				elog(f"max tlsh distance: {max(distances)}")
+				elog(f"median tlsh distance: {statistics.median(distances)}")
+				elog(f"mean tlsh distance: {statistics.mean(distances)}")
 
 	# confusion matrix
 	if "confusion" in action:
@@ -879,6 +977,80 @@ if __name__ == "__main__":
 	|\tdiff funcname|{:>8}|{:>9}|
 			'''.format(tpos,fneg,fpos,tneg))
 
+		if ALGO == "tlsh":
+
+			if THRESHOLD == None:
+				THRESHOLD = 100
+
+			# mapping < CONCAT(funcname,filename) : hashobjs>
+			funcnameFilename_hashobjs = {}
+			jaccard_dists = []
+
+			# print CSV header
+			# print('filefunc0,filefunc1,permutations,jaccard_dist')
+
+			# true pos, false negatie ..
+			tpos, fneg, fpos, tneg = 0,0,0,0
+
+			# get evyerthing
+			rows = cur.execute("SELECT filename,fname,tlsh FROM functlsh")
+			for r in rows:
+				filename = r[0]
+				fname = r[1]
+				fname_filename = filename + ":" + fname
+				tlsh_hash = r[2]
+				funcnameFilename_hashobjs[fname_filename] = tlsh_hash
+
+			for p in itertools.combinations(funcnameFilename_hashobjs.keys(), 2):
+				filefunc0 = p[0]
+				filefunc1 = p[1]
+				t0 = funcnameFilename_hashobjs[filefunc0]
+				t1 = funcnameFilename_hashobjs[filefunc1]
+				distance = tlsh.diff(t0,t1)
+
+				f0 = filefunc0.split(":")[1]
+				f1 = filefunc1.split(":")[1]
+				if (f0 == f1): # same func name
+					if distance <= THRESHOLD: # small distance (<= t) is a match
+						tpos += 1
+					else:
+						fneg += 1
+				else: # diff function name
+					if distance <= THRESHOLD:
+						fpos += 1
+					else:
+						tneg += 1
+
+			# TODO centralize the stats printing at some point I promise
+			print(f"threshold:{THRESHOLD}\ntp:{tpos}\ntn:{tneg}\nfp:{fpos}\nfn:{fneg}")
+			print('''
+|tlsh data matrix|match|no match|
+|------------------------|-----|---------|
+|\tsame funcname|{:>8}|{:>9}|
+|\tdiff funcname|{:>8}|{:>9}|
+			'''.format(tpos,fneg,fpos,tneg))
+
+			tpr = tpos/(tpos+fneg) # true pos rate
+			fnr = fneg/(tpos+fneg) # false neg rate
+			fpr = fpos/(fpos+tneg)
+			tnr = tneg/(fpos+tneg) 
+			# using rates instead of numbers because of class imbalance
+			accuracy = (tpr + tnr) / (tpr + tnr + fpr + fnr)
+			# real numbers for prec and rec
+			#precision = tpos / (tpos + fpos)
+			#recall = tpos / (fpos + fneg)
+
+			print('''
+|tlsh confusion matrix|match|no match|
+|------------------------|-----|---------|
+|\tsame funcname|{:>8.3f}|{:>9.3f}|
+|\tdiff funcname|{:>8.3f}|{:>9.3f}|
+			'''.format(tpr, fnr, fpr, tnr))
+			# print("minhash confusion matrix")
+			print('accuracy:', accuracy)
+
+			# print('precision:',  precision)
+			# print('recall:', recall)
 
 
 

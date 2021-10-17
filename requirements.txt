@@ -7,3 +7,6 @@ pysimhash
 
 # for web app
 flask
+
+# tlsh
+python-tlsh~=4.5.0
