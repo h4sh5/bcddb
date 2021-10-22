@@ -794,6 +794,7 @@ if __name__ == "__main__":
 				THRESHOLD = 100 # <= 100
 			funcnameFilename_hashobjs = {}
 			distances = []
+			skipped=0
 
 			# print CSV header
 			print('filefunc0,filefunc1,difference_tlsh')
@@ -815,8 +816,10 @@ if __name__ == "__main__":
 				t0 = funcnameFilename_hashobjs[filefunc0]
 				t1 = funcnameFilename_hashobjs[filefunc1]
 				# using diffxlen instead of diff to add in containment of a repeating patterns
-				distance = tlsh.diffxlen(t0,t1)
-
+				if t0 != "TNULL" and t1 != "TNULL":
+					distance = tlsh.diffxlen(t0,t1)
+				else:
+					skipped += 1
 				distances.append(distance)
 
 			
@@ -827,6 +830,7 @@ if __name__ == "__main__":
 				elog(f"max tlsh distance: {max(distances)}")
 				elog(f"median tlsh distance: {statistics.median(distances)}")
 				elog(f"mean tlsh distance: {statistics.mean(distances)}")
+			print('skipped because of TNULL:',skipped)
 
 	# confusion matrix
 	if "confusion" in action:
@@ -998,8 +1002,8 @@ if __name__ == "__main__":
 
 			# mapping < CONCAT(funcname,filename) : hashobjs>
 			funcnameFilename_hashobjs = {}
-			jaccard_dists = []
 
+			skipped = 0
 			# print CSV header
 			# print('filefunc0,filefunc1,permutations,jaccard_dist')
 
@@ -1015,13 +1019,17 @@ if __name__ == "__main__":
 				tlsh_hash = r[2]
 				funcnameFilename_hashobjs[fname_filename] = tlsh_hash
 
+
 			for p in itertools.combinations(funcnameFilename_hashobjs.keys(), 2):
 				filefunc0 = p[0]
 				filefunc1 = p[1]
 				t0 = funcnameFilename_hashobjs[filefunc0]
 				t1 = funcnameFilename_hashobjs[filefunc1]
-				distance = tlsh.diff(t0,t1)
-
+				
+				if t0 != "TNULL" and t1 != "TNULL":
+					distance = tlsh.diffxlen(t0,t1)
+				else:
+					skipped += 1	
 				f0 = filefunc0.split(":")[1]
 				f1 = filefunc1.split(":")[1]
 				if (f0 == f1): # same func name
@@ -1035,7 +1043,7 @@ if __name__ == "__main__":
 					else:
 						tneg += 1
 
-			# TODO centralize the stats printing at some point I promise
+			print('skipped:',skipped)
 			print(f"threshold:{THRESHOLD}\ntp:{tpos}\ntn:{tneg}\nfp:{fpos}\nfn:{fneg}")
 			print_confusion_matrix('tlsh', tpos, fpos, tneg, fneg)
 
