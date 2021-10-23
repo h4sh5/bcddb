@@ -499,57 +499,6 @@ if __name__ == "__main__":
 		elog(f"calculated {fnhashCount} hashes, skipped {fnSkipCount}")
 
 
-	# if "simhash_ft" == action:
-	# 	con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
-	# 	cur = con.cursor()
-	# 	cur.execute('''
-	# 		CREATE TABLE IF NOT EXISTS funcsimhash_ft (filename VARCHAR, fname VARCHAR, 
-	# 						simhash VARCHAR, PRIMARY KEY (filename, fname))''')
-	# 	con.commit()
-
-	# 	fnhashCount = 0
-	# 	fnSkipCount = 0
-
-	# 	tokencon =  sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['extract']))
-	# 	tokencur = 	tokencon.cursor()
-
-	# 	rows = tokencur.execute("SELECT filename, fname, tokens from token")
-	# 	for row in rows:
-	# 		filename = row[0]
-	# 		fname = row[1]
-	# 		functokens = row[2]
-
-	# 		# if value too large to be INTEGER, store as string
-	# 		simh = str(Simhash(get_features(functokens)).value) 
-	# 		# test with and without get_features?
-	# 		# simh = str(Simhash(functokens).value)
-
-	# 		# for t in functokens.split():
-	# 		# 	m.update(t.encode('utf8'))
-	# 		# 	# m.update(t)
-
-		
-			
-	# 		# debug('hash:', hashvals)
-	# 		try:
-	# 			cur.execute("INSERT INTO funcsimhash_ft (filename,fname, simhash) values(?,?,?)",
-	# 				(
-	# 					filename, 
-	# 					fname, 
-	# 					simh
-	# 				)
-	# 			)
-	# 			con.commit()
-	# 			fnhashCount += 1
-			
-	# 		except sqlite3.IntegrityError:
-	# 			fnSkipCount += 1
-	# 			pass
-			
-	# 		# import code
-	# 		# code.interact(local=locals())
-	# 	elog(f"calculated {fnhashCount} hashes, skipped {fnSkipCount}")
-
 	if "simhash" == action:
 		con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
 		cur = con.cursor()
