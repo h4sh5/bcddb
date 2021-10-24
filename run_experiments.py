@@ -49,7 +49,7 @@ DATADIR = 'data' # in the current dir
 
 OUTPUT_DBPATHS = {'extract':'ll_extract.db', 'tokenize':'tokens.db', 'hash':'hashes.db'}
 
-MINHASH_PERMS = 64 # default setting is 128, but can shrink due to small length of instructions
+MINHASH_PERMS = 256
 
 def extract_functions_retdecLL(filepath, sqlite_con = None) -> int:
 	'''
@@ -782,7 +782,7 @@ if __name__ == "__main__":
 			print('skipped because of TNULL:',skipped)
 
 	# confusion matrix
-	if "confusion" in action:
+	if "confusion" == action:
 		con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
 		cur = con.cursor()
 		
@@ -995,6 +995,5 @@ if __name__ == "__main__":
 			print('skipped:',skipped)
 			print(f"threshold:{THRESHOLD}\ntp:{tpos}\ntn:{tneg}\nfp:{fpos}\nfn:{fneg}")
 			print_confusion_matrix('tlsh', tpos, fpos, tneg, fneg)
-
 
 	print(f"done, elapsed {time.time() - start} seconds")
