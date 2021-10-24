@@ -227,15 +227,24 @@ def get_features(s):
 
 
 def print_confusion_matrix(name, tpos, fpos, tneg, fneg):
-	tpr = tpos/(tpos+fneg) # true pos rate
+	tpr = recall = tpos/(tpos+fneg) # true pos rate
 	fnr = fneg/(tpos+fneg) # false neg rate
 	fpr = fpos/(fpos+tneg)
 	tnr = tneg/(fpos+tneg) 
 	# using rates instead of numbers because of class imbalance
-	accuracy = (tpr + tnr) / (tpr + tnr + fpr + fnr)
+	accuracy = (tpos + tneg) / (tpos + tneg + fpos + fneg)
+	balanced_accuracy = (tpr+tnr)/2
 	# real numbers for prec and rec
-	#precision = tpos / (tpos + fpos)
-	#recall = tpos / (fpos + fneg)
+	precision = tpos / (tpos + fpos)
+	f1 = 2 * precision*recall / (precision+recall)
+	f2 = 5 * precision*recall / (4 * precision+recall)
+	print(f'tpos:{tpos}\ntneg:{tneg}\nfpos:{fpos}\nfneg{fneg}')
+
+	print(f'tpr:{tpr}')
+	print(f'fnr:{fnr}')
+	print(f'fpr:{fpr}')
+	print(f'tnr:{tnr}')
+
 	print('''
 |{} confusion matrix|  match| no match|
 |------------------------|-------------|---------|
@@ -247,6 +256,12 @@ def print_confusion_matrix(name, tpos, fpos, tneg, fneg):
 				fpr,fpos,
 				tnr,tneg))
 	print('accuracy:', accuracy)
+	print('balanced_accuracy:', balanced_accuracy)
+	print('precision:', precision)
+	print('recall:', recall)
+	print('f1:', f1)
+	print('f2:', f2)
+
 
 
 
@@ -995,5 +1010,88 @@ if __name__ == "__main__":
 			print('skipped:',skipped)
 			print(f"threshold:{THRESHOLD}\ntp:{tpos}\ntn:{tneg}\nfp:{fpos}\nfn:{fneg}")
 			print_confusion_matrix('tlsh', tpos, fpos, tneg, fneg)
+
+	if "balanced_confusion" == action:
+		'''
+		no longer compare ALL function pairs, just compare the ones with the same name across different file names (ISAs)
+		'''
+		con = sqlite3.connect(os.path.join(DATADIR,"db",OUTPUT_DBPATHS['hash']))
+		cur = con.cursor()
+		cur1 = con.cursor()
+		
+		if ALGO == "minhash":
+
+			if THRESHOLD == None:
+				THRESHOLD = 0.5
+
+			# print CSV header
+			# print('filefunc0,filefunc1,permutations,jaccard_dist')
+
+			# true pos, false negatie ..
+			tpos, fneg, fpos, tneg = 0,0,0,0
+
+			# get all function names
+			functions = cur.execute("SELECT distinct fname FROM funcminhash WHERE numperms=?", (MINHASH_PERMS,))
+			for r in functions:
+				filename_hashobjs = {}
+				filefunc_hashobjs = {}
+
+				fname = r[0]
+				samepairs = cur1.execute("SELECT filename,hashvals FROM funcminhash WHERE fname=? AND numperms=? ORDER BY RANDOM()", (fname,MINHASH_PERMS))
+				poscount = 0	
+				# print(fname,poscount)
+				for fp in samepairs:
+					filename = fp[0]
+					hashvalStr = fp[1]
+					hashvals = [ int(i) for i in hashvalStr.split(',') ]
+					filename_hashobjs[filename] = MinHash(hashvalues=hashvals)
+
+					for p in itertools.combinations(filename_hashobjs.keys(), 2):
+						filename0 = p[0]
+						filename1 = p[1]
+						m0 = filename_hashobjs[filename0]
+						m1 = filename_hashobjs[filename1]
+						jaccardi = m0.jaccard(m1)
+
+						# known the function name is the same, only compare threshold
+						# these are the "Positive class"; it's known that they should match
+						if jaccardi >= THRESHOLD:
+							tpos += 1
+						else:
+							fneg += 1
+
+						poscount += 1
+				
+
+				# now get the exact same number of different, random functions to combat class imbalace
+				negcount = 0
+				diffpairs = cur1.execute("SELECT hashvals FROM funcminhash WHERE fname!=? AND numperms=? ORDER BY RANDOM() LIMIT ?", (fname, MINHASH_PERMS, poscount))
+				for fp in diffpairs:
+					# filename = fp[0]
+					# funcname = fp[1]
+					# filefunc = filename+":"+funcname
+
+					hashvalStr = fp[0]
+					hashvals = [ int(i) for i in hashvalStr.split(',') ]
+
+					# m0 stops updating by this point - use the previous value which is the known function name
+					m1 = MinHash(hashvalues=hashvals)
+					jaccardi = m0.jaccard(m1)
+
+					# known the function name is the different, only compare threshold
+					# these are the "Negative class"; they should not match
+					if jaccardi >= THRESHOLD:
+						fpos += 1
+					else:
+						tneg += 1
+					negcount += 1
+				debug(fname,poscount,negcount)
+
+			print('-'*40)
+			print(f"threshold:{THRESHOLD}\ntp:{tpos}\ntn:{tneg}\nfp:{fpos}\nfn:{fneg}")
+			print(f"poscount {poscount}")
+			print(f"negcount {negcount}")
+			print_confusion_matrix('minhash', tpos,fpos,tneg,fneg)
+
 
 	print(f"done, elapsed {time.time() - start} seconds")
