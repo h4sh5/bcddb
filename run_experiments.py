@@ -20,6 +20,7 @@ import statistics
 VERBOSE = False # can be turned off via flags
 ALGO = "minhash"
 THRESHOLD = None
+MAXFUNCS = None
 
 def debug(*args, **kwargs):
 	if VERBOSE:
@@ -41,6 +42,7 @@ def usage():
 		-p permutations		: number of permutations for minhash, or tolerance k for simhash
 		-d path/to/data		: path to data directory)
 		-t threshold		: threshold for matching in minhash and simhash (e.g 0.5 for minhash, 10 for simhash)
+		-c max function count	: max number of functions to sample 
 		-v		: verbose debugging messages
 
 		''')
@@ -275,7 +277,7 @@ if __name__ == "__main__":
 
 	funcNames = None
 
-	opts, args = getopt.gnu_getopt(sys.argv[1:], 'hvd:a:t:p:f:')
+	opts, args = getopt.gnu_getopt(sys.argv[1:], 'hvd:a:t:p:f:c:')
 	for tup in opts:
 			o,a = tup[0], tup[1]
 			if o == '-h':
@@ -293,6 +295,8 @@ if __name__ == "__main__":
 				VERBOSE = True
 			elif o == '-t':
 				THRESHOLD = float(a)
+			elif o == '-c':
+				MAXFUNCS = int(a)
 
 
 	action = args[0]
@@ -1030,8 +1034,11 @@ if __name__ == "__main__":
 			# true pos, false negatie ..
 			tpos, fneg, fpos, tneg = 0,0,0,0
 
-			# get all function names
-			functions = cur.execute("SELECT distinct fname FROM funcminhash WHERE numperms=?", (MINHASH_PERMS,))
+			# get all function names, except the unamed ones labeled @function_*
+			if MAXFUNCS != None:
+				functions = cur.execute("SELECT distinct fname FROM funcminhash WHERE numperms=? and fname NOT LIKE '@function_%' LIMIT ?", (MINHASH_PERMS,MAXFUNCS))
+			else:
+				functions = cur.execute("SELECT distinct fname FROM funcminhash WHERE numperms=? and fname NOT LIKE '@function_%'", (MINHASH_PERMS,))
 			for r in functions:
 				filename_hashobjs = {}
 				filefunc_hashobjs = {}
