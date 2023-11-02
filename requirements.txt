@@ -10,3 +10,4 @@ flask
 
 # tlsh
 python-tlsh~=4.5.0
+werkzeug>=3.0.1 # not directly required, pinned by Snyk to avoid a vulnerability
